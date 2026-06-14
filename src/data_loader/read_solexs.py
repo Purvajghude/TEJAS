@@ -2,7 +2,10 @@
 
 from astropy.io import fits
 
-file_path = "data/raw/solexs/solexs_2026Jun12T200024196/AL1_SLX_L1_20260610_v1.0/SDD2/AL1_SOLEXS_20260610_SDD2_L1.lc"
+from pathlib import Path
+
+file_path = list(Path("data/raw/solexs").rglob("*.lc"))[0]
+print("Using:", file_path)
 
 with fits.open(file_path) as hdul:
     print("\n===== FITS INFO =====")
