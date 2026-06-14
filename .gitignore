@@ -1,0 +1,66 @@
+# Virtual Environment
+venv/
+.env
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment Variables
+.env
+.env.*
+
+# Build Files
+build/
+dist/
+*.egg-info/
+
+# Test Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Models (can be large)
+models/*.pth
+models/*.pt
+models/*.pkl
+
+# Data Files
+data/raw/*
+data/processed/*
+
+# Keep folder structure
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/sample/.gitkeep
+
+# FITS and Scientific Data
+*.fits
+*.fit
+*.lc
+*.evt
+*.pha   
+
+# Compressed Data
+*.zip
+*.gz
+*.tar
+*.tar.gz
+
+# Temporary Files
+*.tmp
+*.temp
