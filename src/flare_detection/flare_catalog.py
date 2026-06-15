@@ -1,11 +1,13 @@
 from astropy.io import fits
 import numpy as np
-from datetime import datetime
-
+import pandas as pd
+from datetime import datetime, UTC
 from pathlib import Path
 
 file_path = list(Path("data/raw/solexs").rglob("*.lc"))[0]
 print("Using:", file_path)
+
+catalog = []
 
 with fits.open(file_path) as hdul:
 
@@ -48,7 +50,7 @@ with fits.open(file_path) as hdul:
 
         duration = time[end_idx] - time[start_idx]
 
-        # Ignore tiny detections (< 60 sec)
+        # Skip invalid detections
         if duration < 0:
             continue
 
@@ -56,22 +58,55 @@ with fits.open(file_path) as hdul:
 
         peak_idx = group[np.argmax(counts[group])]
 
-        start_time = datetime.utcfromtimestamp(time[start_idx])
-        peak_time = datetime.utcfromtimestamp(time[peak_idx])
-        end_time = datetime.utcfromtimestamp(time[end_idx])
+        start_time = datetime.fromtimestamp(
+            time[start_idx],
+            UTC
+        )
 
-        peak_count = counts[peak_idx]
+        peak_time = datetime.fromtimestamp(
+            time[peak_idx],
+            UTC
+        )
+
+        end_time = datetime.fromtimestamp(
+            time[end_idx],
+            UTC
+        )
+
+        peak_count = float(counts[peak_idx])
+
         duration_minutes = duration / 60
 
         # Severity Classification
         if peak_count >= 250:
-            severity = "VERY STRONG 🔴"
+            severity = "VERY STRONG"
+            icon = "🔴"
+
         elif peak_count >= 150:
-            severity = "STRONG 🟠"
+            severity = "STRONG"
+            icon = "🟠"
+
         elif peak_count >= 75:
-            severity = "MODERATE 🟡"
+            severity = "MODERATE"
+            icon = "🟡"
+
         else:
-            severity = "WEAK 🟢"
+            severity = "WEAK"
+            icon = "🟢"
+
+        # Save to catalog
+        catalog.append({
+            "flare_id": f"FLR-{flare_count:03d}",
+            "payload": "SoLEXS",
+            "start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "peak_time": peak_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_time": end_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "duration_minutes": round(duration_minutes, 2),
+            "peak_count": peak_count,
+            "background": round(mean_count, 2),
+            "threshold": round(threshold, 2),
+            "severity": severity
+        })
 
         print("\n" + "=" * 60)
 
@@ -80,9 +115,9 @@ with fits.open(file_path) as hdul:
         print("\nStatus       : SOLAR FLARE CONFIRMED ✅")
         print("Payload      : SoLEXS")
 
-        print(f"\nStart Time   : {start_time} UTC")
-        print(f"Peak Time    : {peak_time} UTC")
-        print(f"End Time     : {end_time} UTC")
+        print(f"\nStart Time   : {start_time}")
+        print(f"Peak Time    : {peak_time}")
+        print(f"End Time     : {end_time}")
 
         print(f"\nDuration     : {duration_minutes:.1f} Minutes")
 
@@ -91,11 +126,33 @@ with fits.open(file_path) as hdul:
         print(f"Background   : {mean_count:.2f}")
         print(f"Threshold    : {threshold:.2f}")
 
-        print(f"\nSeverity     : {severity}")
+        print(f"\nSeverity     : {severity} {icon}")
 
         print("\n" + "=" * 60)
 
     if flare_count == 0:
         print("\nNo significant solar flares detected.")
 
-    print(f"\nTotal Significant Flares Detected : {flare_count}")
+# ==========================
+# SAVE CSV CATALOG
+# ==========================
+
+Path("outputs/catalogs").mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+df = pd.DataFrame(catalog)
+
+csv_path = "outputs/catalogs/solexs_catalog.csv"
+
+df.to_csv(
+    csv_path,
+    index=False
+)
+
+print("\n")
+print("=" * 60)
+print(f"Total Significant Flares Detected : {flare_count}")
+print(f"Catalog Saved : {csv_path}")
+print("=" * 60)

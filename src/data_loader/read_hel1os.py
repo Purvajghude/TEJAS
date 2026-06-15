@@ -2,7 +2,13 @@
 
 from astropy.io import fits
 
-file_path = "data/raw/hel1os/HLS_20260611_114949_43807sec_lev1_V111/2026/06/11/HLS_20260611_114949_43807sec_lev1_V111/cdte/lightcurve_cdte1.fits"
+from pathlib import Path
+
+file_path = list(
+    Path("data/raw/hel1os").rglob("lightcurve_cdte1.fits")
+)[0]
+
+print("Using:", file_path)
 
 with fits.open(file_path) as hdul:
     print("\n===== FITS INFO =====")
