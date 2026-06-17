@@ -1,0 +1,83 @@
+# ======================================================================
+# TEJAS — central configuration
+# All paths are resolved relative to the repository root (this file's dir)
+# ======================================================================
+
+project: TEJAS
+
+paths:
+  raw_solexs:   data/raw/solexs
+  raw_hel1os:   data/raw/hel1os
+  external:     data/external          # GOES cache etc.
+  outputs:      outputs
+  catalogs:     outputs/catalogs
+  fusion:       outputs/fusion
+  forecasting:  outputs/forecasting
+  models:       outputs/models
+  figures:      outputs/figures
+
+# ----------------------------------------------------------------------
+# SoLEXS (soft X-ray) loading
+# ----------------------------------------------------------------------
+solexs:
+  detector:   SDD2                      # SDD2 carries the science light curve
+  lc_glob:    "**/SDD2/*.lc.gz"
+  hdu:        1                         # RATE BinTable
+  time_col:   TIME                      # Unix UTC seconds
+  count_col:  COUNTS                    # counts per 1 s bin
+  cadence_s:  1
+  # Data-quality exclusions. 2024-10-02's L1 file shares ~21% of its high-count
+  # samples with 2024-10-01 (incl. an identical 23655-count peak) yet GOES shows
+  # no X-flare that day — a processing artifact, so we drop it.
+  exclude_dates:
+    - "20241002"
+
+# ----------------------------------------------------------------------
+# Flare detection (nowcasting) — sliding background + Poisson significance
+# ----------------------------------------------------------------------
+detection:
+  smooth_window_s:        15            # boxcar smoothing of raw counts
+  background_window_s:    1800          # 30-min rolling-median quiescent background
+  background_quantile:    0.10          # robust background = low quantile in window
+  sigma_threshold:        5.0           # Poisson significance to OPEN a flare
+  end_sigma:              2.0           # significance to CLOSE a flare
+  min_duration_s:         60            # reject blips shorter than this
+  merge_gap_s:            120           # merge two events closer than this
+
+# ----------------------------------------------------------------------
+# HEL1OS (hard X-ray) loading
+# ----------------------------------------------------------------------
+hel1os:
+  lc_glob:    "**/cdte/lightcurve_cdte*.fits"
+  detectors:  [cdte1, cdte2]            # sum both CdTe detectors
+  bin_s:      10                        # resample irregular ~1 s data to this grid
+  bands:                               # HDU index for each energy band
+    broad:    5                         # 1.8-90 keV  (total hard X-ray)
+    b_5_20:   1                         # 5-20  keV   (thermal-ish)
+    b_20_30:  2                         # 20-30 keV   (nonthermal)
+    b_30_40:  3                         # 30-40 keV
+    b_40_60:  4                         # 40-60 keV
+  exclude_dates: []
+
+# ----------------------------------------------------------------------
+# GOES cross-calibration & classification
+# ----------------------------------------------------------------------
+goes:
+  satellite: 18
+  # lower flux bound (W/m^2, 1-8 Angstrom) for each GOES class
+  flux_classes:
+    A: 1.0e-8
+    B: 1.0e-7
+    C: 1.0e-6
+    M: 1.0e-5
+    X: 1.0e-4
+  match_window_s: 600                   # +/- window to match our events to GOES events
+
+# ----------------------------------------------------------------------
+# Forecasting
+# ----------------------------------------------------------------------
+forecast:
+  horizons_min:        [15, 30, 60, 120]  # evaluate skill vs lead time
+  primary_horizon_min: 30                  # model saved for the dashboard
+  target_class:        "M"                 # forecast flares of this GOES class or above
+  test_fraction:       0.25                # chronological holdout (last fraction in time)

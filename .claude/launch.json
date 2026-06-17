@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "tejas-dashboard",
+      "runtimeExecutable": "C:/Users/Rover/tejas-venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "streamlit", "run", "app/dashboard.py",
+                      "--server.port", "8521", "--server.headless", "true"],
+      "port": 8521
+    },
+    {
+      "name": "tejas-3d",
+      "runtimeExecutable": "C:/Users/Rover/tejas-venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "http.server", "8531", "--directory", "app/web"],
+      "port": 8531
+    }
+  ]
+}

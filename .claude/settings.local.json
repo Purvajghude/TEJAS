@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk -F, 'NR>1{print $NF}' outputs/forecasting/training_dataset.csv)",
+      "Bash(curl -s -m 25 \"https://services.swpc.noaa.gov/json/goes/primary/xray-flares-latest.json\")",
+      "Bash(echo \"---EXIT $?---\")",
+      "Bash(curl -s -m 25 \"https://services.swpc.noaa.gov/json/goes/primary/xray-flares-7-day.json\")",
+      "Bash(curl -s -m 25 -o /dev/null -w \"HTTP %{http_code}\\\\n\" \"https://www.ncei.noaa.gov/data/goes-space-environment-monitor/access/science/xrs/\")",
+      "Bash(python -c \"import sunpy; print\\('sunpy', sunpy.__version__\\)\")",
+      "WebSearch",
+      "Bash(curl -s -m 30 \"https://services.swpc.noaa.gov/json/goes/primary/xray-flares-7-day.json\")",
+      "Bash(python3 -c ' *)",
+      "Bash(powershell -Command \"Get-Content 'C:/Users/Rover/OneDrive/Documents/GitHub/TEJAS/flares_tmp.json' | ConvertFrom-Json | Select-Object begin_time, max_class, max_time, end_time | Format-Table\")",
+      "PowerShell($data = Get-Content 'C:/Users/Rover/OneDrive/Documents/GitHub/TEJAS/flares_tmp.json' | ConvertFrom-Json; foreach \\($f in $data\\) { Write-Host \\($f.begin_time.Substring\\(0,10\\) + \" | \" + $f.begin_time.Substring\\(11,5\\) + \"-\" + $f.end_time.Substring\\(11,5\\) + \" | \" + $f.max_class\\) })",
+      "Bash(curl -s -m 30 \"https://services.swpc.noaa.gov/json/goes/primary/xray-flares-7-day.json\" -o C:/Users/Rover/OneDrive/Documents/GitHub/TEJAS/flares_tmp.json)",
+      "Bash(curl -s -m 30 \"https://www.swpc.noaa.gov/sites/default/files/images/u2/RadBelt.txt\" -o /dev/null -w \"HTTP %{http_code}\")",
+      "Bash(powershell -Command \"Get-Content 'C:/Users/Rover/OneDrive/Documents/GitHub/TEJAS/flares_tmp.json'\")",
+      "WebFetch(domain:www.ncei.noaa.gov)",
+      "WebFetch(domain:www.ngdc.noaa.gov)",
+      "WebFetch(domain:www.swpc.noaa.gov)",
+      "WebFetch(domain:kauai.ccmc.gsfc.nasa.gov)",
+      "Bash(ls \"C:/Users/Rover/Downloads/\" | grep -i \"AL1\\\\|HLS\\\\|SLX\\\\|solexs\\\\|hel1os\" | head -50)",
+      "mcp__Claude_Preview__preview_start"
+    ]
+  }
+}

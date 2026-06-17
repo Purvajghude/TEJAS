@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TEJAS · Aditya-L1 Solar Flare Command Center</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="scanlines"></div>
+<div id="app" class="app">
+
+  <!-- ===================== HEADER ===================== -->
+  <header class="hdr">
+    <div class="hdr-l">
+      <div class="logo">☀</div>
+      <div>
+        <h1>TE<span>JAS</span></h1>
+        <p class="sub">ADITYA-L1 · SOLAR FLARE COMMAND CENTER</p>
+      </div>
+    </div>
+    <div class="hdr-c">
+      <div class="statline" id="statusReadout">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">SYSTEM NOMINAL · MONITORING SOFT X-RAY</span>
+      </div>
+    </div>
+    <div class="hdr-r">
+      <div class="clock" id="clock">--:--:-- UTC</div>
+      <div class="range" id="dateRange">—</div>
+    </div>
+  </header>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="main">
+
+    <!-- LEFT COLUMN -->
+    <section class="col">
+      <div class="panel" id="panel-kpi">
+        <div class="panel-h">MISSION STATISTICS</div>
+        <div class="kpis" id="kpiGrid"></div>
+      </div>
+      <div class="panel grow">
+        <div class="panel-h">SOFT (SoLEXS) · HARD (HEL1OS) · GOES OVERLAY</div>
+        <div class="chart" id="chartLight"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h">FLARES BY GOES CLASS</div>
+        <div class="chart short" id="chartDist"></div>
+      </div>
+    </section>
+
+    <!-- CENTER : THE SUN -->
+    <section class="stage">
+      <canvas id="sun"></canvas>
+      <div class="stage-top">
+        <div class="big-class" id="bigClass">—</div>
+        <div class="big-label" id="bigLabel">NO ACTIVE FLARE</div>
+      </div>
+      <div class="stage-legend">
+        <span><i style="background:#ffd23f"></i>C</span>
+        <span><i style="background:#ff7b29"></i>M</span>
+        <span><i style="background:#ff3b30"></i>X</span>
+      </div>
+      <div class="stage-foot">
+        <button id="playBtn" class="play">▶ REPLAY CAMPAIGN</button>
+        <input type="range" id="timeline" min="0" max="1000" value="1000" />
+        <span class="tl-date" id="tlDate">—</span>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN -->
+    <section class="col">
+      <div class="panel grow">
+        <div class="panel-h">FLARE ALERT FEED</div>
+        <div class="feed" id="feed"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h">SoLEXS → GOES CALIBRATION · r=<span id="calR">—</span></div>
+        <div class="chart short" id="chartCalib"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-h">FORECAST · SKILL vs LEAD-TIME</div>
+        <div class="chart short" id="chartForecast"></div>
+        <div class="valgrid" id="fcStats"></div>
+        <div class="leaderboard" id="leaderboard"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===================== FOOTER TICKER ===================== -->
+  <footer class="ticker">
+    <div class="ticker-track" id="ticker"></div>
+  </footer>
+</div>
+
+<!-- vendored libraries (offline) -->
+<script src="vendor/three.min.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script src="vendor/echarts.min.js"></script>
+<!-- data + app -->
+<script src="data/data.js"></script>
+<script src="js/sun.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>
