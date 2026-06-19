@@ -46,21 +46,41 @@ def main() -> int:
         print("drms not installed. Run:  pip install drms")
         return 1
 
-    # JSOC TAI time-range query with cadence sampling, keywords only.
-    s = args.start.replace("-", ".")
-    e = args.end.replace("-", ".")
-    q = f"hmi.sharp_cea_720s[][{s}_00:00:00_TAI-{e}_00:00:00_TAI@{args.cadence}]"
-    print(f"Querying JSOC: {q}\n  keywords: {', '.join(AGG)}")
+    # JSOC times out on multi-year queries, so fetch in monthly chunks (keywords
+    # only, cadence-sampled) with a couple of retries each, then concatenate.
     client = drms.Client(email=args.email) if args.email else drms.Client()
-    df = client.query(q, key=", ".join(KEYS))
-    if df is None or len(df) == 0:
+    print(f"Fetching hmi.sharp_cea_720s @ {args.cadence}, monthly chunks\n"
+          f"  keywords: {', '.join(AGG)}")
+    parts, cur, end = [], pd.Timestamp(args.start), pd.Timestamp(args.end)
+    while cur < end:
+        nxt = min(cur + pd.Timedelta(days=31), end)
+        q = (f"hmi.sharp_cea_720s[][{cur:%Y.%m.%d}_00:00:00_TAI-"
+             f"{nxt:%Y.%m.%d}_00:00:00_TAI@{args.cadence}]")
+        d = None
+        for attempt in range(3):
+            try:
+                d = client.query(q, key=", ".join(KEYS))
+                break
+            except Exception as ex:
+                print(f"  {cur:%Y-%m} retry {attempt+1}/3 ({type(ex).__name__})")
+        n = 0 if d is None else len(d)
+        if n:
+            parts.append(d)
+        print(f"  {cur:%Y-%m}: {n} records")
+        cur = nxt
+    if not parts:
         print("No SHARP records returned (check the date range / JSOC availability).")
         return 1
-    print(f"  {len(df):,} active-region records")
+    df = pd.concat(parts, ignore_index=True)
+    print(f"  total {len(df):,} active-region records")
 
-    # Parse time, coerce keywords to numeric.
-    df["time"] = pd.to_datetime(df["T_REC"].str.replace("_TAI", "", regex=False),
-                                format="%Y.%m.%d_%H:%M:%S", errors="coerce")
+    # Parse time and convert TAI -> UTC.  SHARP T_REC is in TAI, while every other
+    # TEJAS series (SoLEXS/HEL1OS/GOES) is UTC; TAI has led UTC by 37 leap seconds
+    # since 2017 (no leap seconds added 2024-2026), so UTC = TAI - 37 s.
+    TAI_MINUS_UTC_S = 37
+    df["time"] = (pd.to_datetime(df["T_REC"].str.replace("_TAI", "", regex=False),
+                                 format="%Y.%m.%d_%H:%M:%S", errors="coerce")
+                  - pd.Timedelta(seconds=TAI_MINUS_UTC_S))
     df = df.dropna(subset=["time"])
     for k in AGG:
         df[k] = pd.to_numeric(df[k], errors="coerce")

@@ -338,6 +338,19 @@
       median period <b>${med}</b><br><small>Lomb-Scargle · FAP&lt;1% · ≥3 cycles · ${rng}</small></div>`;
   })();
 
+  // SHARP magnetogram supplement panel.
+  const sharp = D.sharp || null;
+  (function renderSharp() {
+    const el = $('sharpBody'); if (!el) return;
+    if (!sharp) { el.innerHTML = '<div class="qpp-sub">Run <code>main.py sharp</code> to add magnetogram context.</div>'; return; }
+    const v = sharp.validation || {};
+    const pct = v.fraction_above_quiet_median != null ? Math.round(v.fraction_above_quiet_median * 100) + '%' : '';
+    el.innerHTML = `<div class="qpp-big">${v.elevation_ratio != null ? v.elevation_ratio + '×' : '—'}</div>
+      <div class="qpp-sub">higher magnetic complexity 6 h before M+ flares<br>
+      <small>SHARP validated${pct ? ' · ' + pct + ' of M+ above quiet baseline' : ''}${sharp.topFeatures && sharp.topFeatures.length ? ' · top: ' + sharp.topFeatures.slice(0, 3).join(', ') : ''}<br>
+      neutral as a 30-min feature (ΔAUC ${sharp.benefitAuc}) — value is longer-horizon / per-AR</small></div>`;
+  })();
+
   // Timeline replay.
   const t0 = light.t && light.t.length ? Date.parse(light.t[0]) : Date.now();
   const t1 = light.t && light.t.length ? Date.parse(light.t[light.t.length - 1]) : Date.now();

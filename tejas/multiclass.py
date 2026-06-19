@@ -62,6 +62,10 @@ def run(cfg: Config | None = None, verbose: bool = True) -> dict:
     m = m.dropna(subset=F.FEATURES).reset_index(drop=True)
     st, en = F.flare_intervals(cfg)
     m = m[~F.in_flare_mask(m["time"].to_numpy(), st, en)].reset_index(drop=True)
+    # NOTE: SHARP is intentionally NOT folded in here — the ablation (tejas/sharp.py)
+    # showed disk-aggregated SHARP slightly degrades the 30-min forecaster (and
+    # overfits the rare X class), so production stays X-ray-only. SHARP is validated
+    # and reported separately as a magnetogram supplement / longer-horizon direction.
     split = m["time"].quantile(1 - test_frac)
     if verbose:
         print(f"Multi-class @ {primary} min | {len(m):,} quiescent samples | "

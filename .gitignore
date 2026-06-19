@@ -52,6 +52,8 @@ models/*.pkl
 data/raw/*
 data/processed/*
 data/external/*
+# fetched/derived data (e.g. SHARP) — regenerate via tools/
+data/*.csv
 
 # Generated pipeline outputs (regenerate with `python main.py run`)
 outputs/catalogs/*

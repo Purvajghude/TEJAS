@@ -69,6 +69,12 @@ def _qpp():
     run()
 
 
+def _sharp():
+    """SHARP magnetogram ablation: does magnetic complexity improve forecasting?"""
+    from tejas.sharp import run
+    run()
+
+
 def _web():
     """Export fresh data and serve the 3D-Sun command center."""
     import http.server
@@ -100,7 +106,7 @@ def _days():
 
 COMMANDS = {"run": _run, "forecast": _forecast, "tcn": _tcn, "compare": _compare,
             "ensemble": _ensemble, "multiclass": _multiclass, "qpp": _qpp,
-            "web": _web, "dashboard": _dashboard, "days": _days}
+            "sharp": _sharp, "web": _web, "dashboard": _dashboard, "days": _days}
 
 
 def main():

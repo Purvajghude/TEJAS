@@ -16,6 +16,7 @@ requests>=2.31
 PyYAML>=6.0
 netCDF4>=1.6          # read GOES XRS netCDF
 pyarrow>=15.0         # parquet I/O
+drms>=0.9             # SDO/HMI SHARP keywords from JSOC (magnetogram supplement)
 
 # Visualisation / dashboard
 matplotlib>=3.8

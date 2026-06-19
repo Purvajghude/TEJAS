@@ -71,6 +71,9 @@ def build_payload(cfg: Config | None = None) -> dict:
 
     qpp_path = cfg.paths["catalogs"] / "qpp_report.json"
     qpp = json.loads(qpp_path.read_text()) if qpp_path.exists() else None
+
+    sharp_path = cfg.paths["forecasting"] / "sharp_ablation.json"
+    sharp_abl = json.loads(sharp_path.read_text()) if sharp_path.exists() else None
     # Ensemble probability track (10-min peak), the live forecast-alert driver.
     tl_path = cfg.paths["forecasting"] / "ensemble_timeline.parquet"
     forecast_track = None
@@ -216,6 +219,16 @@ def build_payload(cfg: Config | None = None) -> dict:
             "medianPeriodS": qpp["median_qpp_period_s"],
             "periodRangeS": qpp["period_range_s"],
         } if qpp else None),
+        "sharp": ({
+            "coverage": sharp_abl["sharp_coverage_frac"],
+            "xrayAuc": sharp_abl["xray_only"]["metrics"]["ROC_AUC"],
+            "sharpAuc": sharp_abl["xray_plus_sharp"]["metrics"]["ROC_AUC"],
+            "benefitAuc": sharp_abl["sharp_benefit"]["ROC_AUC"],
+            "benefitTss": sharp_abl["sharp_benefit"]["TSS"],
+            "topFeatures": [d["feature"].replace("sharp_", "").replace("_max", "")
+                            for d in sharp_abl.get("top_sharp_features", [])],
+            "validation": sharp_abl.get("timeline_validation"),
+        } if sharp_abl else None),
     }
     return payload
 
