@@ -60,6 +60,7 @@ outputs/models/*
 outputs/figures/*
 outputs/fusion/*
 outputs/forecasting/*
+outputs/suit/*
 
 # Keep folder structure
 !data/raw/.gitkeep

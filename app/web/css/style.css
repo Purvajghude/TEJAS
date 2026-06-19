@@ -404,3 +404,20 @@ button,input{font:inherit}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
+
+/* ---- Multi-class forecast bars + QPP panel ---- */
+.mc-bars { display: flex; flex-direction: column; gap: 14px; margin-top: 6px; }
+.mc-row { display: grid; grid-template-columns: 56px 1fr 44px; grid-template-rows: auto auto;
+  align-items: center; column-gap: 12px; }
+.mc-label { display: flex; flex-direction: column; line-height: 1.05; }
+.mc-label b { font-size: 18px; font-weight: 800; }
+.mc-label small { font-size: 10px; color: #858781; text-transform: uppercase; letter-spacing: .04em; }
+.mc-track { height: 10px; border-radius: 6px; background: rgba(21,21,20,.07); overflow: hidden; }
+.mc-fill { height: 100%; border-radius: 6px; transition: width .25s cubic-bezier(.2,.7,.3,1); min-width: 2px; }
+.mc-val { font-size: 15px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.mc-skill { grid-column: 2 / 4; font-size: 10px; color: #9a9c97; margin-top: 2px; }
+.qpp-body { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 10px 0 4px; }
+.qpp-big { font-size: 46px; font-weight: 800; color: #a8614b; line-height: 1; }
+.qpp-sub { font-size: 12px; color: #767873; margin-top: 10px; line-height: 1.5; }
+.qpp-sub small { color: #9a9c97; font-size: 10px; }

@@ -54,6 +54,23 @@ def build_payload(cfg: Config | None = None) -> dict:
 
     ens_path = cfg.paths["forecasting"] / "ensemble_metrics.json"
     ensemble = json.loads(ens_path.read_text()) if ens_path.exists() else None
+
+    mc_path = cfg.paths["forecasting"] / "multiclass_metrics.json"
+    multiclass = json.loads(mc_path.read_text()) if mc_path.exists() else None
+    # Class-resolved probability track (10-min peak) for live C/M/X bars.
+    mct_path = cfg.paths["forecasting"] / "multiclass_probability.parquet"
+    mc_track = None
+    if mct_path.exists():
+        mt = pd.read_parquet(mct_path)
+        mt["t10"] = mt["time"].dt.floor("10min")
+        cols = [c for c in ("p_C", "p_M", "p_X") if c in mt.columns]
+        tg = mt.groupby("t10")[cols].max().reset_index()
+        mc_track = {"t": [t.isoformat() for t in tg["t10"]]}
+        for c in cols:
+            mc_track[c] = [round(float(v), 4) for v in tg[c]]
+
+    qpp_path = cfg.paths["catalogs"] / "qpp_report.json"
+    qpp = json.loads(qpp_path.read_text()) if qpp_path.exists() else None
     # Ensemble probability track (10-min peak), the live forecast-alert driver.
     tl_path = cfg.paths["forecasting"] / "ensemble_timeline.parquet"
     forecast_track = None
@@ -182,6 +199,23 @@ def build_payload(cfg: Config | None = None) -> dict:
                                 .get("low_far_1_per_day", {}).get("threshold")),
             "track": forecast_track,
         } if ensemble else None),
+        "multiclass": ({
+            "horizon": multiclass["primary_horizon_min"],
+            "classes": {c: {"auc": v["metrics"]["ROC_AUC"],
+                            "prAuc": v["metrics"]["PR_AUC"],
+                            "recall": v["event_recall"],
+                            "lead": v["median_lead_min"],
+                            "label": v["label"]}
+                        for c, v in multiclass["classes"].items()},
+            "track": mc_track,
+        } if multiclass else None),
+        "qpp": ({
+            "fraction": qpp["qpp_fraction"],
+            "nDetected": qpp["n_qpp_detected"],
+            "nAnalysed": qpp["n_flares_analysed"],
+            "medianPeriodS": qpp["median_qpp_period_s"],
+            "periodRangeS": qpp["period_range_s"],
+        } if qpp else None),
     }
     return payload
 

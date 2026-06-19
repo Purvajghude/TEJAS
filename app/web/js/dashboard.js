@@ -290,6 +290,54 @@
       </div>`).join('');
   }
 
+  // Multi-class probability bars (live during replay) + QPP panel.
+  const mclass = D.multiclass || {};
+  const mcClasses = mclass.classes || {};
+  const mctrack = mclass.track || {};
+  const mcTimes = (mctrack.t || []).map(t => Date.parse(t));
+  const mcColors = { C: '#b28a4a', M: '#a8614b', X: '#10100f' };
+  const mcOrder = ['C', 'M', 'X'].filter(c => mcClasses[c]);
+  if ($('mcHorizon')) $('mcHorizon').textContent = (mclass.horizon || 30) + ' min';
+  function renderMcBars(probs) {
+    const el = $('mcBars'); if (!el) return;
+    el.innerHTML = mcOrder.map(c => {
+      const info = mcClasses[c]; const p = probs && probs[c] != null ? probs[c] : 0;
+      return `<div class="mc-row">
+        <div class="mc-label" style="color:${mcColors[c]}"><b>${c}+</b><small>${(info.label || '').split(' ')[0]}</small></div>
+        <div class="mc-track"><div class="mc-fill" data-c="${c}" style="width:${(p * 100).toFixed(1)}%;background:${mcColors[c]}"></div></div>
+        <div class="mc-val" data-c="${c}">${Math.round(p * 100)}%</div>
+        <div class="mc-skill">AUC ${info.auc} · ${info.lead}m lead</div>
+      </div>`;
+    }).join('');
+  }
+  renderMcBars(null);
+  function mcAt(ms) {
+    if (!mcTimes.length || ms < mcTimes[0]) return null;
+    let lo = 0, hi = mcTimes.length - 1, ans = 0;
+    while (lo <= hi) { const md = (lo + hi) >> 1; if (mcTimes[md] <= ms) { ans = md; lo = md + 1; } else hi = md - 1; }
+    const out = {}; mcOrder.forEach(c => { const a = mctrack['p_' + c]; if (a) out[c] = a[ans]; });
+    return out;
+  }
+  function updateMcBars(ms) {
+    const p = mcAt(ms); if (!p) return;
+    mcOrder.forEach(c => {
+      const f = document.querySelector('.mc-fill[data-c="' + c + '"]');
+      const v = document.querySelector('.mc-val[data-c="' + c + '"]');
+      if (f && p[c] != null) f.style.width = (p[c] * 100).toFixed(1) + '%';
+      if (v && p[c] != null) v.textContent = Math.round(p[c] * 100) + '%';
+    });
+  }
+  const qpp = D.qpp || {};
+  (function renderQpp() {
+    const el = $('qppBody'); if (!el) return;
+    const frac = qpp.fraction != null ? (qpp.fraction * 100).toFixed(1) + '%' : '—';
+    const med = qpp.medianPeriodS != null ? (qpp.medianPeriodS / 60).toFixed(1) + ' min' : '—';
+    const rng = qpp.periodRangeS ? `${qpp.periodRangeS[0]}–${qpp.periodRangeS[1]} s` : '';
+    el.innerHTML = `<div class="qpp-big">${frac}</div>
+      <div class="qpp-sub"><b>${fmtInt.format(qpp.nDetected || 0)}</b> of ${fmtInt.format(qpp.nAnalysed || 0)} flares pulsating<br>
+      median period <b>${med}</b><br><small>Lomb-Scargle · FAP&lt;1% · ≥3 cycles · ${rng}</small></div>`;
+  })();
+
   // Timeline replay.
   const t0 = light.t && light.t.length ? Date.parse(light.t[0]) : Date.now();
   const t1 = light.t && light.t.length ? Date.parse(light.t[light.t.length - 1]) : Date.now();
@@ -320,6 +368,7 @@
     prev = ms;
     setCampaignClock(ms);
     cursor(ms, true);
+    updateMcBars(ms);
     slider.value = ((ms - t0) / span) * 1000;
   }
 
@@ -338,6 +387,7 @@
         else if (pr < fcThreshold) { fcArmed = true; }
       }
     }
+    updateMcBars(cur);
     prev = cur;
     setCampaignClock(cur);
     cursor(cur);

@@ -57,6 +57,18 @@ def _ensemble():
     run()
 
 
+def _multiclass():
+    """Multi-class forecasting: P(C+/M+/X+) probabilities (Forecasting M2)."""
+    from tejas.multiclass import run
+    run()
+
+
+def _qpp():
+    """Detect Quasi-Periodic Pulsations in HEL1OS hard X-rays during flares."""
+    from tejas.qpp import run
+    run()
+
+
 def _web():
     """Export fresh data and serve the 3D-Sun command center."""
     import http.server
@@ -87,7 +99,8 @@ def _days():
 
 
 COMMANDS = {"run": _run, "forecast": _forecast, "tcn": _tcn, "compare": _compare,
-            "ensemble": _ensemble, "web": _web, "dashboard": _dashboard, "days": _days}
+            "ensemble": _ensemble, "multiclass": _multiclass, "qpp": _qpp,
+            "web": _web, "dashboard": _dashboard, "days": _days}
 
 
 def main():
