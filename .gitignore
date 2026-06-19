@@ -1,6 +1,13 @@
 # Virtual Environment
 venv/
+.venv/
 .env
+
+# Local machine-specific config (absolute data paths etc.)
+config.local.yaml
+
+# Claude Code / agent local state
+.claude/
 
 # Python Cache
 __pycache__/
@@ -19,6 +26,8 @@ Thumbs.db
 
 # Logs
 *.log
+outputs/*.txt
+outputs/*.log
 
 # Environment Variables
 .env
@@ -39,14 +48,27 @@ models/*.pth
 models/*.pt
 models/*.pkl
 
-# Data Files
+# Data Files (raw payload data + external GOES cache — large, not committed)
 data/raw/*
 data/processed/*
+data/external/*
+
+# Generated pipeline outputs (regenerate with `python main.py run`)
+outputs/catalogs/*
+outputs/processed/*
+outputs/models/*
+outputs/figures/*
+outputs/fusion/*
+outputs/forecasting/*
 
 # Keep folder structure
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/sample/.gitkeep
+!**/.gitkeep
+
+# NetCDF (GOES)
+*.nc
 
 # FITS and Scientific Data
 *.fits
