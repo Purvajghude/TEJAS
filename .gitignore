@@ -52,23 +52,13 @@ models/*.pkl
 data/raw/*
 data/processed/*
 data/external/*
-# fetched/derived data (e.g. SHARP) — regenerate via tools/
-data/*.csv
+# Collab snapshot: derived data (SHARP), observations + all outputs and models ARE
+# committed so a collaborator gets everything except the raw archive. data/sharp.csv
+# is allowed; only the raw payload (above) and junk logs (below) stay out.
 
-# Generated pipeline outputs (regenerate with `python main.py run`)
-outputs/catalogs/*
-outputs/processed/*
-outputs/models/*
-outputs/figures/*
-outputs/fusion/*
-outputs/forecasting/*
-outputs/suit/*
-
-# ...but DO commit the small trained models so collaborators can benchmark them
-# (the 47 MB flare_forecaster.joblib stays out — regenerable and unused by the app)
-!outputs/models/ensemble.joblib
-!outputs/models/ensemble_tcn.pt
-!outputs/models/tcn_pretrained.pt
+# Only exclude junk run logs from outputs/
+outputs/*.txt
+outputs/*.log
 
 # Keep folder structure
 !data/raw/.gitkeep

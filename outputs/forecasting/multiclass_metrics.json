@@ -1,0 +1,55 @@
+{
+  "milestone": "Forecasting M2 \u2014 multi-class (low/medium/high) probabilities",
+  "primary_horizon_min": 30,
+  "split_time": "2025-11-30 23:10:00",
+  "classes": {
+    "C": {
+      "label": "low (C+)",
+      "n_target_peaks": 6386,
+      "metrics": {
+        "ROC_AUC": 0.691,
+        "PR_AUC": 0.2307,
+        "TSS": 0.251,
+        "precision": 0.188,
+        "TPR_recall": 0.532,
+        "Brier": 0.0917
+      },
+      "threshold": 0.1329,
+      "event_recall": 0.958,
+      "median_lead_min": 27.8,
+      "false_alarms_per_day": 11.19
+    },
+    "M": {
+      "label": "medium (M+)",
+      "n_target_peaks": 1061,
+      "metrics": {
+        "ROC_AUC": 0.797,
+        "PR_AUC": 0.0876,
+        "TSS": 0.421,
+        "precision": 0.019,
+        "TPR_recall": 0.701,
+        "Brier": 0.0074
+      },
+      "threshold": 0.0098,
+      "event_recall": 0.852,
+      "median_lead_min": 29.1,
+      "false_alarms_per_day": 10.27
+    },
+    "X": {
+      "label": "high (X+)",
+      "n_target_peaks": 68,
+      "metrics": {
+        "ROC_AUC": 0.665,
+        "PR_AUC": 0.0022,
+        "TSS": 0.324,
+        "precision": 0.002,
+        "TPR_recall": 0.429,
+        "Brier": 0.0005
+      },
+      "threshold": 0.001,
+      "event_recall": 0.6,
+      "median_lead_min": 22.1,
+      "false_alarms_per_day": 8.51
+    }
+  }
+}

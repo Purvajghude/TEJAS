@@ -1,0 +1,29 @@
+{
+  "model": "tcn_transfer",
+  "pretrain": {
+    "goes_windows": 55432,
+    "goes_positives": 13858,
+    "goes_holdout_auc": 0.914
+  },
+  "horizon_min": 30,
+  "window_min": 120,
+  "split_time": "2024-10-09 07:43:15",
+  "n_test": 11041,
+  "test_positive_rate": 0.057,
+  "metrics_test": {
+    "TSS": 0.085,
+    "HSS": 0.091,
+    "ROC_AUC": 0.477,
+    "Brier": 0.0942,
+    "precision": 0.149,
+    "TPR_recall": 0.13,
+    "FPR": 0.045,
+    "false_alarm_ratio": 0.851,
+    "confusion": {
+      "TP": 82,
+      "FP": 468,
+      "TN": 9943,
+      "FN": 548
+    }
+  }
+}

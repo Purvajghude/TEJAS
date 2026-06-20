@@ -1,0 +1,2 @@
+time,filter,img_type,exposure_s,visible_frac,disk_sum,disk_mean,disk_p99,qval,helios_trig,solex_trig,file,sum_per_s,p99_per_s
+2024-03-10 21:35:38.674975,NB03,Normal,1.333,0.961,19210908785.0,3240.443,7020.0,100.0,0,0,SUT_T24_0587_000291_Lev1.0_2024-03-10T21.35.38.674_0971NB03.fits,14411784534.884,5266.317

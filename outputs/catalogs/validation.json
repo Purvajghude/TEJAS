@@ -1,0 +1,45 @@
+{
+  "n_days": 739,
+  "date_range": [
+    "2024-02-01 00:00:01",
+    "2026-06-15 23:59:59"
+  ],
+  "n_flares": 6583,
+  "class_counts": {
+    "C": 5334,
+    "M": 1093,
+    "B": 107,
+    "X": 49
+  },
+  "minute_correlation_r": 0.849,
+  "peak_calibration": {
+    "slope": 0.8175,
+    "intercept": -7.2403,
+    "r": 0.9893,
+    "n": 6501
+  },
+  "goes_letter_class_agreement": 0.968,
+  "recovery": {
+    "n_reference": 1750,
+    "n_recovered": 1243,
+    "recall_overall": 0.71,
+    "by_class": {
+      "B": [
+        1,
+        1
+      ],
+      "C": [
+        158,
+        227
+      ],
+      "M": [
+        1013,
+        1439
+      ],
+      "X": [
+        71,
+        83
+      ]
+    }
+  }
+}

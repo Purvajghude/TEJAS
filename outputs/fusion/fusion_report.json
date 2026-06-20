@@ -1,0 +1,25 @@
+{
+  "n_soft": 6583,
+  "n_hard": 12988,
+  "n_master": 15459,
+  "n_dual_confirmed": 4123,
+  "dual_confirm_by_class": {
+    "C": [
+      3440,
+      5334
+    ],
+    "M": [
+      595,
+      1093
+    ],
+    "X": [
+      18,
+      49
+    ]
+  },
+  "neupert": {
+    "n_with_lead": 300,
+    "median_lead_s": 196.5,
+    "mean_lead_s": 300.4
+  }
+}

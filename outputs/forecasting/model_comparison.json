@@ -1,0 +1,49 @@
+{
+  "horizon_min": 30,
+  "test_period": "2024-10-08 12:16:00",
+  "n_test": 12211,
+  "ranking": [
+    {
+      "model": "logistic",
+      "ROC_AUC": 0.778,
+      "TSS": 0.407,
+      "HSS": 0.272,
+      "precision": 0.245,
+      "TPR_recall": 0.502,
+      "false_alarm_ratio": 0.755,
+      "Brier": 0.0447
+    },
+    {
+      "model": "rf",
+      "ROC_AUC": 0.753,
+      "TSS": 0.356,
+      "HSS": 0.324,
+      "precision": 0.335,
+      "TPR_recall": 0.406,
+      "false_alarm_ratio": 0.665,
+      "Brier": 0.0433
+    },
+    {
+      "model": "lgbm",
+      "ROC_AUC": 0.692,
+      "TSS": 0.294,
+      "HSS": 0.313,
+      "precision": 0.377,
+      "TPR_recall": 0.327,
+      "false_alarm_ratio": 0.623,
+      "Brier": 0.0461
+    },
+    {
+      "model": "tcn_transfer",
+      "ROC_AUC": 0.477,
+      "TSS": 0.085,
+      "HSS": 0.091,
+      "precision": 0.149,
+      "TPR_recall": 0.13,
+      "false_alarm_ratio": 0.851,
+      "Brier": 0.0942
+    }
+  ],
+  "winner_by_auc": "logistic",
+  "note": "TCN evaluated on 120-min windows over the same test period; tree/logistic on per-minute engineered features. Same horizon and chronological test set."
+}

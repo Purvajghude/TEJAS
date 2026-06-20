@@ -1,0 +1,17 @@
+{
+  "channel": "hard",
+  "bin_s": 10,
+  "period_range_s": [
+    30.0,
+    600.0
+  ],
+  "fap_threshold": 0.01,
+  "n_flares_analysed": 10612,
+  "n_qpp_detected": 340,
+  "qpp_fraction": 0.032,
+  "median_qpp_period_s": 330.0,
+  "period_range_detected_s": [
+    30.0,
+    600.0
+  ]
+}
