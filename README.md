@@ -162,6 +162,38 @@ Aditya-L1 **SUIT** near-UV imaging and/or photospheric magnetograms.
 
 ---
 
+## Benchmark the models — no data download needed
+
+The raw Aditya-L1 archive is multi-GB and can't be redistributed, so the repo ships
+the **trained models** and a **held-out test set** (the models' predictions + ground
+truth) so anyone can verify the accuracy independently:
+
+```bash
+pip install -r requirements.txt
+python main.py evaluate
+```
+
+This recomputes ROC-AUC / PR-AUC / Brier per class from `eval/test_predictions.parquet`
+and prints them next to the reported numbers (they match). What's committed:
+
+- `outputs/models/ensemble.joblib`, `ensemble_tcn.pt`, `tcn_pretrained.pt` — trained models
+- `eval/test_predictions.parquet` — held-out test predictions + labels (Nov 2025 → Jun 2026)
+- `eval/*.json` — the reported metrics (multiclass, ensemble, SHARP ablation, QPP)
+
+## For collaborators — full reproduction
+
+To retrain or extend, you need the source data (not in the repo):
+
+1. Download SoLEXS (L1/2) + HEL1OS (L1) from **ISSDC PRADAN** into `data/raw/solexs` and
+   `data/raw/hel1os` — or point elsewhere via a git-ignored `config.local.yaml`.
+2. `python main.py run` (nowcast → fusion → forecast → dashboard export)
+3. `python main.py ensemble` · `multiclass` · `qpp` · `sharp` (optional: `fetch_sharp.py` first)
+4. `python main.py web` to serve the dashboard.
+
+Generated outputs (`data/`, `outputs/`, `sharp.csv`) are git-ignored and regenerate from these steps.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Built for the ISRO Aditya-L1 hackathon.

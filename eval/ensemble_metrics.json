@@ -1,0 +1,149 @@
+{
+  "architecture": "TCN + LightGBM -> logistic meta-learner (isotonic-calibrated)",
+  "target_class": "M+",
+  "primary_horizon_min": 30,
+  "forecasting_discipline": "in-flare samples excluded (quiescent-only prediction points)",
+  "quiescent_fraction": 0.905,
+  "split": {
+    "train_end": "2025-07-07 14:43:36",
+    "val_end": "2026-01-04 05:08:48",
+    "n_train": 526803,
+    "n_val": 176648,
+    "n_test": 180600
+  },
+  "tcn_dilations": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32
+  ],
+  "window_min": 120,
+  "tcn_earlystop_auc": 0.769,
+  "test_metrics": {
+    "lgbm_only": {
+      "TSS": 0.533,
+      "HSS": 0.041,
+      "ROC_AUC": 0.846,
+      "PR_AUC": 0.1416,
+      "Brier": 0.0333,
+      "precision": 0.027,
+      "TPR_recall": 0.693,
+      "FPR": 0.16,
+      "false_alarm_ratio": 0.973,
+      "confusion": {
+        "TP": 807,
+        "FP": 28688,
+        "TN": 150748,
+        "FN": 357
+      }
+    },
+    "tcn_only": {
+      "TSS": 0.406,
+      "HSS": 0.04,
+      "ROC_AUC": 0.807,
+      "PR_AUC": 0.0839,
+      "Brier": 0.0513,
+      "precision": 0.027,
+      "TPR_recall": 0.527,
+      "FPR": 0.121,
+      "false_alarm_ratio": 0.973,
+      "confusion": {
+        "TP": 613,
+        "FP": 21694,
+        "TN": 157742,
+        "FN": 551
+      }
+    },
+    "ensemble": {
+      "TSS": 0.541,
+      "HSS": 0.046,
+      "ROC_AUC": 0.847,
+      "PR_AUC": 0.1095,
+      "Brier": 0.0062,
+      "precision": 0.03,
+      "TPR_recall": 0.685,
+      "FPR": 0.144,
+      "false_alarm_ratio": 0.97,
+      "confusion": {
+        "TP": 797,
+        "FP": 25823,
+        "TN": 153613,
+        "FN": 367
+      }
+    }
+  },
+  "ensemble_gain_vs_best_base": {
+    "ROC_AUC": 0.001,
+    "TSS": 0.008
+  },
+  "meta_coefficients": {
+    "lgbm": 3.414,
+    "tcn": 2.407,
+    "intercept": -1.72
+  },
+  "ensemble_threshold": 0.0095,
+  "operating_points": {
+    "recall_max": {
+      "threshold": 0.0095,
+      "n_flares": 83,
+      "n_caught": 62,
+      "event_recall": 0.747,
+      "n_alarms": 1384,
+      "n_false_alarms": 1339,
+      "false_alarms_per_day": 8.23,
+      "episode_precision": 0.033
+    },
+    "low_far_1_per_day": {
+      "threshold": 0.0503,
+      "n_flares": 83,
+      "n_caught": 25,
+      "event_recall": 0.301,
+      "n_alarms": 67,
+      "n_false_alarms": 50,
+      "false_alarms_per_day": 0.31,
+      "episode_precision": 0.254
+    }
+  },
+  "lead_time": {
+    "n_flares": 83,
+    "n_caught": 62,
+    "event_recall": 0.747,
+    "median_lead_min": 29.1,
+    "mean_lead_min": 26.2,
+    "max_lead_min": 30.0
+  },
+  "reliability": [
+    {
+      "p_pred": 0.005,
+      "p_obs": 0.006,
+      "n": 180527
+    },
+    {
+      "p_pred": 0.122,
+      "p_obs": 0.647,
+      "n": 17
+    },
+    {
+      "p_pred": 0.247,
+      "p_obs": 0.0,
+      "n": 1
+    },
+    {
+      "p_pred": 0.333,
+      "p_obs": 0.5,
+      "n": 12
+    },
+    {
+      "p_pred": 0.816,
+      "p_obs": 0.0,
+      "n": 1
+    },
+    {
+      "p_pred": 1.0,
+      "p_obs": 0.5,
+      "n": 42
+    }
+  ]
+}

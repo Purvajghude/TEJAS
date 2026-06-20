@@ -75,6 +75,13 @@ def _sharp():
     run()
 
 
+def _evaluate():
+    """Reproduce held-out test accuracy from eval/ (no raw data needed)."""
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, "tools/evaluate.py"])
+
+
 def _web():
     """Export fresh data and serve the 3D-Sun command center."""
     import http.server
@@ -106,7 +113,8 @@ def _days():
 
 COMMANDS = {"run": _run, "forecast": _forecast, "tcn": _tcn, "compare": _compare,
             "ensemble": _ensemble, "multiclass": _multiclass, "qpp": _qpp,
-            "sharp": _sharp, "web": _web, "dashboard": _dashboard, "days": _days}
+            "sharp": _sharp, "evaluate": _evaluate, "web": _web,
+            "dashboard": _dashboard, "days": _days}
 
 
 def main():

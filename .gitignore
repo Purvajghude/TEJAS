@@ -64,6 +64,12 @@ outputs/fusion/*
 outputs/forecasting/*
 outputs/suit/*
 
+# ...but DO commit the small trained models so collaborators can benchmark them
+# (the 47 MB flare_forecaster.joblib stays out — regenerable and unused by the app)
+!outputs/models/ensemble.joblib
+!outputs/models/ensemble_tcn.pt
+!outputs/models/tcn_pretrained.pt
+
 # Keep folder structure
 !data/raw/.gitkeep
 !data/processed/.gitkeep
