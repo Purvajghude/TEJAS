@@ -169,9 +169,15 @@ the **trained models** and a **held-out test set** (the models' predictions + gr
 truth) so anyone can verify the accuracy independently:
 
 ```bash
+git lfs install          # models + eval bundle are stored via Git LFS
+git clone https://github.com/Purvajghude/TEJAS && cd TEJAS
 pip install -r requirements.txt
 python main.py evaluate
 ```
+
+> The trained models and `eval/` bundle are tracked with **Git LFS** — install it
+> (`git lfs install`) before cloning, or run `git lfs pull` after, to fetch the real
+> files instead of pointer stubs.
 
 This recomputes ROC-AUC / PR-AUC / Brier per class from `eval/test_predictions.parquet`
 and prints them next to the reported numbers (they match). What's committed:

@@ -1,0 +1,17 @@
+* text=auto
+
+# Large scientific datasets and trained models belong in Git LFS.
+*.fits filter=lfs diff=lfs merge=lfs -text
+*.fit filter=lfs diff=lfs merge=lfs -text
+*.lc filter=lfs diff=lfs merge=lfs -text
+*.evt filter=lfs diff=lfs merge=lfs -text
+*.pha filter=lfs diff=lfs merge=lfs -text
+*.nc filter=lfs diff=lfs merge=lfs -text
+*.parquet filter=lfs diff=lfs merge=lfs -text
+*.joblib filter=lfs diff=lfs merge=lfs -text
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.pth filter=lfs diff=lfs merge=lfs -text
+*.pkl filter=lfs diff=lfs merge=lfs -text
+*.zip filter=lfs diff=lfs merge=lfs -text
+*.gz filter=lfs diff=lfs merge=lfs -text
+*.tar filter=lfs diff=lfs merge=lfs -text
