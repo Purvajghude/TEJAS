@@ -89,19 +89,104 @@
   ];
   $('fcStats').innerHTML = fcStats.map(([v, l]) => `<div class="valcell"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
 
-  // Navigation active state.
+  // Navigation active state / Scroll tracking.
   const navItems = document.querySelectorAll('.nav-item');
-  navItems.forEach(item => item.addEventListener('click', () => {
-    navItems.forEach(n => n.classList.remove('active'));
-    item.classList.add('active');
-    if (item.getAttribute('href') === '#forecasting') {
+
+  function navigateToSection(targetId) {
+    const targetElement = document.querySelector(targetId);
+    if (!targetElement) return;
+
+    // Auto-open forecast dropdown if we switched to forecasting
+    if (targetId === '#forecasting') {
       const fdContainer = $('forecastDropdown');
       const fdBtn = $('forecastDropdownBtn');
       if (fdContainer && fdBtn && !fdContainer.classList.contains('is-open')) {
         fdBtn.click();
       }
     }
+
+    targetElement.scrollIntoView({ behavior: 'smooth' });
+    
+    // Update hash without jumping
+    if (history.pushState) {
+      history.pushState(null, null, targetId);
+    } else {
+      window.location.hash = targetId;
+    }
+
+    resizeCharts(100);
+    resizeCharts(300);
+  }
+
+  navItems.forEach(item => item.addEventListener('click', (e) => {
+    e.preventDefault();
+    const href = item.getAttribute('href');
+    navigateToSection(href);
   }));
+
+  // Intercept all internal section links (like explore observations in the hero card)
+  document.querySelectorAll('a[href^="#"]').forEach(link => {
+    if (link.classList.contains('nav-item')) return;
+    link.addEventListener('click', (e) => {
+      const href = link.getAttribute('href');
+      if (['#overview', '#observations', '#forecasting', '#models'].includes(href)) {
+        e.preventDefault();
+        navigateToSection(href);
+      }
+    });
+  });
+
+  // Highlight navigation item on scroll using IntersectionObserver
+  const observerOptions = {
+    root: null, // viewport
+    rootMargin: '-20% 0px -60% 0px', // triggers when section occupies central viewport
+    threshold: 0
+  };
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.getAttribute('id');
+        const activeNav = document.querySelector(`.nav-item[href="#${id}"]`);
+        if (activeNav) {
+          navItems.forEach(n => n.classList.remove('active'));
+          activeNav.classList.add('active');
+        }
+      }
+    });
+  }, observerOptions);
+
+  // Observe navigation target sections specifically
+  ['overview', 'observations', 'forecasting', 'models'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) observer.observe(el);
+  });
+
+  // Scroll reveal observer for premium fadeUp animation as user scrolls
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('active-reveal');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, {
+    root: null,
+    rootMargin: '0px 0px -8% 0px',
+    threshold: 0.05
+  });
+
+  document.querySelectorAll('.reveal').forEach(el => {
+    revealObserver.observe(el);
+  });
+
+  // Handle initial page load hash
+  const initialHash = window.location.hash;
+  if (initialHash && ['#overview', '#observations', '#forecasting', '#models'].includes(initialHash)) {
+    window.setTimeout(() => {
+      navigateToSection(initialHash);
+    }, 400); // Small delay to let browser finish loading layout/charts
+  }
 
   // ECharts theme helpers.
   const lightAxis = {
@@ -152,7 +237,7 @@
       { name: 'SoLEXS soft', type: 'line', showSymbol: false, sampling: 'lttb', smooth: .18,
         data: light.t.map((t, i) => [t, positive(light.counts[i])]),
         lineStyle: { color: '#f7f4ea', width: 1.65 }, areaStyle: { color: 'rgba(247,244,234,.10)' },
-        markLine: { silent: true, symbol: 'none', lineStyle: { color: 'rgba(247,244,234,.72)', width: 1.4 }, data: [] } },
+        markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: 'rgba(247,244,234,.72)', width: 1.4 }, data: [] } },
       { name: 'HEL1OS hard', type: 'line', showSymbol: false, sampling: 'lttb', smooth: .12,
         data: hasHard ? light.t.map((t, i) => [t, positive(light.hard[i])]) : [],
         lineStyle: { color: '#c98265', width: 1.35 }, areaStyle: { color: 'rgba(201,130,101,.09)' } },
@@ -378,7 +463,7 @@
   function cursor(ms, force) {
     if (!force && performance.now() - lastCursor < 180) return;
     lastCursor = performance.now();
-    lightChart.setOption({ series: [{ markLine: { data: [{ xAxis: new Date(ms).toISOString() }] } }] });
+    lightChart.setOption({ series: [{ markLine: { label: { show: false }, data: [{ xAxis: new Date(ms).toISOString() }] } }] });
   }
 
   function jump(ms) {
@@ -390,9 +475,21 @@
     slider.value = ((ms - t0) / span) * 1000;
   }
 
-  function tick() {
-    if (!playing) return;
-    const dtMs = (span / duration) * (1 / 60);
+  let lastTickTime = null;
+  function tick(timestamp) {
+    if (!playing) {
+      lastTickTime = null;
+      return;
+    }
+    if (lastTickTime === null) {
+      lastTickTime = timestamp || performance.now();
+      requestAnimationFrame(tick);
+      return;
+    }
+    const elapsedRealMs = (timestamp || performance.now()) - lastTickTime;
+    lastTickTime = timestamp || performance.now();
+
+    const dtMs = (span / (duration * 1000)) * elapsedRealMs;
     cur += dtMs;
     for (const fl of flares) {
       const ms = Date.parse(fl.t);
@@ -440,6 +537,7 @@
       playBtn.querySelector('.play-symbol').textContent = 'Ⅱ';
       playBtn.querySelector('.play-label').textContent = 'Pause replay';
       $('statusText').textContent = 'Replaying campaign';
+      lastTickTime = null;
       tick();
     } else {
       playBtn.querySelector('.play-symbol').textContent = '▶';
@@ -448,32 +546,134 @@
     }
   });
 
-  // Expandable chart cards.
+  // Expandable chart cards with smooth FLIP transitions.
   const backdrop = $('chartBackdrop');
   let expandedCard = null;
+
   function closeExpanded() {
     if (!expandedCard) return;
-    expandedCard.classList.remove('is-expanded');
-    const btn = expandedCard.querySelector('.expand-btn');
-    if (btn) btn.setAttribute('aria-expanded', 'false');
-    backdrop.classList.remove('visible');
-    document.body.classList.remove('chart-open');
+    const card = expandedCard;
+    const placeholder = card._placeholder;
+
+    if (placeholder) {
+      // Get the target layout position from our placeholder
+      const targetRect = placeholder.getBoundingClientRect();
+      const currentRect = card.getBoundingClientRect();
+
+      const invertX = targetRect.left - currentRect.left;
+      const invertY = targetRect.top - currentRect.top;
+      const scaleX = targetRect.width / currentRect.width;
+      const scaleY = targetRect.height / currentRect.height;
+
+      // Animate back to its origin layout
+      card.style.transition = 'transform 0.46s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.46s cubic-bezier(0.16, 1, 0.3, 1)';
+      card.style.transform = `translate(${invertX}px, ${invertY}px) scale(${scaleX}, ${scaleY})`;
+      
+      const btn = card.querySelector('.expand-btn');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+      backdrop.classList.remove('visible');
+      document.body.classList.remove('chart-open');
+
+      // Clean up styles and classes after transition finishes
+      const cleanup = () => {
+        card.removeEventListener('transitionend', cleanup);
+        if (card._placeholder !== placeholder) return; // Guard against rapid multi-clicks
+        card.classList.remove('is-expanded');
+        card.style.transform = '';
+        card.style.transformOrigin = '';
+        card.style.transition = '';
+        if (placeholder.parentNode) {
+          placeholder.parentNode.removeChild(placeholder);
+        }
+        delete card._placeholder;
+        resizeCharts(40);
+      };
+      card.addEventListener('transitionend', cleanup);
+      // Fallback timer in case transitionend event does not fire (e.g. tab hidden)
+      setTimeout(() => {
+        if (card._placeholder === placeholder) cleanup();
+      }, 500);
+    } else {
+      card.classList.remove('is-expanded');
+      card.style.transform = '';
+      card.style.transformOrigin = '';
+      card.style.transition = '';
+      const btn = card.querySelector('.expand-btn');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+      backdrop.classList.remove('visible');
+      document.body.classList.remove('chart-open');
+      resizeCharts(40);
+    }
     expandedCard = null;
-    resizeCharts(80);
   }
+
   function expandCard(button) {
     const card = button.closest('.chart-card');
     if (!card) return;
     if (expandedCard === card) { closeExpanded(); return; }
-    closeExpanded();
+    
+    // Close any already expanded cards immediately
+    if (expandedCard) {
+      const prev = expandedCard;
+      const ph = prev._placeholder;
+      prev.classList.remove('is-expanded');
+      prev.style.transform = '';
+      prev.style.transformOrigin = '';
+      prev.style.transition = '';
+      if (ph && ph.parentNode) ph.parentNode.removeChild(ph);
+      delete prev._placeholder;
+    }
+
     expandedCard = card;
+
+    // 1. Get initial bounds
+    const first = card.getBoundingClientRect();
+
+    // 2. Create placeholder to preserve page height/flow
+    const placeholder = document.createElement('div');
+    placeholder.id = 'chart-placeholder';
+    placeholder.style.width = first.width + 'px';
+    placeholder.style.height = first.height + 'px';
+    placeholder.style.gridColumn = window.getComputedStyle(card).gridColumn;
+    placeholder.style.gridRow = window.getComputedStyle(card).gridRow;
+    placeholder.style.margin = window.getComputedStyle(card).margin;
+    placeholder.style.visibility = 'hidden'; // Keep layout but don't show
+    card.parentNode.insertBefore(placeholder, card);
+    card._placeholder = placeholder;
+
+    // 3. Render in expanded state (snaps to fixed dimensions instantly)
     card.classList.add('is-expanded');
     button.setAttribute('aria-expanded', 'true');
     backdrop.classList.add('visible');
     document.body.classList.add('chart-open');
-    resizeCharts(60);
+
+    // 4. Get final bounds
+    const last = card.getBoundingClientRect();
+
+    // 5. Invert transform offset calculation
+    const invertX = first.left - last.left;
+    const invertY = first.top - last.top;
+    const scaleX = first.width / last.width;
+    const scaleY = first.height / last.height;
+
+    // Set initial layout position offset instantly
+    card.style.transformOrigin = 'top left';
+    card.style.transform = `translate(${invertX}px, ${invertY}px) scale(${scaleX}, ${scaleY})`;
+    card.style.transition = 'none';
+
+    // Force layout reflow
+    card.offsetHeight;
+
+    // 6. Play the transition to final bounds
+    card.style.transition = 'transform 0.46s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.46s cubic-bezier(0.16, 1, 0.3, 1)';
+    card.style.transform = 'none';
+
+    // Trigger instant resize so chart matches new aspect ratio, and resize again at transition end for sharp drawing
+    resizeCharts(0);
+    resizeCharts(150);
     resizeCharts(460);
   }
+
   document.querySelectorAll('.expand-btn').forEach(btn => {
     btn.setAttribute('aria-expanded', 'false');
     btn.addEventListener('click', () => expandCard(btn));

@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#d9d9d4" />
   <title>TEJAS · Solar Intelligence</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css?v=1.6" />
 </head>
 
 <body>
@@ -68,58 +68,62 @@
     </aside>
 
     <main class="workspace">
-      <header class="topbar" id="overview">
-        <div class="page-title">
-          <p>Dashboard</p>
-          <h1>Solar Intelligence</h1>
-        </div>
-        <div class="topbar-actions">
-          <div class="status-pill"><span class="status-dot"></span><span id="statusText">Monitoring nominally</span>
+      <!-- Section 1: Overview -->
+      <div class="scroll-section" id="overview">
+        <header class="topbar">
+          <div class="page-title">
+            <p>Dashboard</p>
+            <h1>Solar Intelligence</h1>
           </div>
-          <div class="date-pill">
-            <svg viewBox="0 0 24 24">
-              <rect x="3" y="5" width="18" height="16" rx="3"></rect>
-              <path d="M8 3v4M16 3v4M3 10h18"></path>
+          <div class="topbar-actions">
+            <div class="status-pill"><span class="status-dot"></span><span id="statusText">Monitoring nominally</span>
+            </div>
+            <div class="date-pill">
+              <svg viewBox="0 0 24 24">
+                <rect x="3" y="5" width="18" height="16" rx="3"></rect>
+                <path d="M8 3v4M16 3v4M3 10h18"></path>
+              </svg>
+              <span id="dateRange">—</span>
+            </div>
+            <div class="clock-pill"><span id="clock">--:--</span><small>UTC</small></div>
+          </div>
+        </header>
+
+        <section class="hero glass-surface reveal">
+          <div class="hero-copy">
+            <span class="eyebrow">Aditya-L1 · SoLEXS + HEL1OS</span>
+            <h2>See the signal.<br><em>Understand the flare.</em></h2>
+            <p>A unified view of soft and hard X-ray observations, cross-calibrated against GOES and evaluated with
+              time-aware forecasting.</p>
+            <div class="hero-actions">
+              <a class="primary-btn" href="#observations">Explore observations <span>↘</span></a>
+              <span class="coverage-note"><i></i><span id="coverageText">37 observing days</span></span>
+            </div>
+          </div>
+          <div class="hero-outlook">
+            <div class="outlook-top"><span>Latest catalogued event</span><span class="live-mark">Recorded</span></div>
+            <div class="outlook-reading">
+              <strong id="latestClass">—</strong>
+              <div><b id="latestEvent">Awaiting data</b><small id="latestTime">—</small></div>
+            </div>
+            <div class="outlook-rule"></div>
+            <div class="outlook-bottom">
+              <div><small>Model outlook</small><b id="outlookAuc">— AUC</b></div>
+              <div><small>Median warning</small><b id="outlookLead">— min</b></div>
+            </div>
+            <svg class="outlook-wave" viewBox="0 0 360 90" preserveAspectRatio="none" aria-hidden="true">
+              <path
+                d="M0 62C30 63 43 59 62 59s30 9 49 6 28-29 50-25 21 30 43 29 31-46 55-43 18 36 40 33 30-20 61-17 28 12 40 10">
+              </path>
             </svg>
-            <span id="dateRange">—</span>
           </div>
-          <div class="clock-pill"><span id="clock">--:--</span><small>UTC</small></div>
-        </div>
-      </header>
+        </section>
 
-      <section class="hero glass-surface reveal">
-        <div class="hero-copy">
-          <span class="eyebrow">Aditya-L1 · SoLEXS + HEL1OS</span>
-          <h2>See the signal.<br><em>Understand the flare.</em></h2>
-          <p>A unified view of soft and hard X-ray observations, cross-calibrated against GOES and evaluated with
-            time-aware forecasting.</p>
-          <div class="hero-actions">
-            <a class="primary-btn" href="#observations">Explore observations <span>↘</span></a>
-            <span class="coverage-note"><i></i><span id="coverageText">37 observing days</span></span>
-          </div>
-        </div>
-        <div class="hero-outlook">
-          <div class="outlook-top"><span>Latest catalogued event</span><span class="live-mark">Recorded</span></div>
-          <div class="outlook-reading">
-            <strong id="latestClass">—</strong>
-            <div><b id="latestEvent">Awaiting data</b><small id="latestTime">—</small></div>
-          </div>
-          <div class="outlook-rule"></div>
-          <div class="outlook-bottom">
-            <div><small>Model outlook</small><b id="outlookAuc">— AUC</b></div>
-            <div><small>Median warning</small><b id="outlookLead">— min</b></div>
-          </div>
-          <svg class="outlook-wave" viewBox="0 0 360 90" preserveAspectRatio="none" aria-hidden="true">
-            <path
-              d="M0 62C30 63 43 59 62 59s30 9 49 6 28-29 50-25 21 30 43 29 31-46 55-43 18 36 40 33 30-20 61-17 28 12 40 10">
-            </path>
-          </svg>
-        </div>
-      </section>
+        <section class="kpi-grid reveal" id="kpiGrid" aria-label="Mission statistics"></section>
+      </div>
 
-      <section class="kpi-grid reveal" id="kpiGrid" aria-label="Mission statistics"></section>
-
-      <section class="content-grid" id="observations">
+      <!-- Section 2: Observations -->
+      <section class="content-grid scroll-section" id="observations">
         <article class="card chart-card dark-card light-card reveal" data-chart-card="chartLight">
           <div class="card-head">
             <div><span class="card-kicker">Combined observations</span>
@@ -193,6 +197,7 @@
           <div class="chart chart-medium" id="chartCalib"></div>
         </article>
 
+        <!-- Forecast skill by horizon (restored to normal span 4 card inside observations) -->
         <article class="card chart-card reveal" data-chart-card="chartForecast" id="forecasting">
           <div class="card-head">
             <div><span class="card-kicker">Time-aware validation</span>
@@ -209,8 +214,10 @@
           <div class="forecast-strip" id="fcStats"></div>
         </article>
 
+        <!-- Forecast tabs dropdown wrapper (span 12) -->
         <div id="forecastDropdownWrapper" style="grid-column: 1 / -1;">
-          <div id="forecastDropdown" style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.6s var(--ease), opacity 0.4s var(--ease);">
+          <div id="forecastDropdown"
+            style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; overflow: hidden; max-height: 0; opacity: 0; transition: max-height 0.6s var(--ease), opacity 0.4s var(--ease);">
             <article class="card reveal" id="multiclass">
               <div class="card-head">
                 <div><span class="card-kicker">Forecast · class-resolved</span>
@@ -244,11 +251,15 @@
             </article>
           </div>
           <div style="text-align: center; margin: 20px 0 0;">
-            <button id="forecastDropdownBtn" class="primary-btn" style="background: #111; color: #fff; border: none; box-shadow: 0 18px 34px rgba(16,16,15,.22);">Show more forecast tabs <span style="display:inline-block; transition: transform 0.3s var(--ease);">↓</span></button>
+            <button id="forecastDropdownBtn" class="primary-btn"
+              style="background: #111; color: #fff; border: none; box-shadow: 0 18px 34px rgba(16,16,15,.22);">Show more
+              forecast tabs <span
+                style="display:inline-block; transition: transform 0.3s var(--ease);">↓</span></button>
           </div>
         </div>
 
-        <article class="card models-card reveal" id="models">
+        <!-- Model comparison (restored to observations grid, span 12) -->
+        <article class="card models-card reveal" id="models" style="grid-column: 1 / -1;">
           <div class="card-head">
             <div><span class="card-kicker">Benchmark</span>
               <h3>Model comparison</h3>
@@ -274,7 +285,7 @@
 
   <script src="vendor/echarts.min.js"></script>
   <script src="data/data.js"></script>
-  <script src="js/dashboard.js"></script>
+  <script src="js/dashboard.js?v=1.6"></script>
 </body>
 
 </html>

@@ -615,7 +615,7 @@ input {
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 14px
+  gap: 20px
 }
 
 .kpi {
@@ -684,7 +684,7 @@ input {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   grid-auto-flow: row;
-  gap: 16px;
+  gap: 24px;
   align-items: stretch
 }
 
@@ -1273,14 +1273,16 @@ input {
   display: flex;
   flex-direction: column;
   overflow: auto;
-  transform: none !important;
-  animation: expandIn .46s var(--ease) both;
 }
 
 .chart-card.is-expanded .chart {
   flex: 1;
   height: auto;
   min-height: 360px
+}
+
+.expand-icon {
+  transition: transform 0.38s var(--ease);
 }
 
 .chart-card.is-expanded .expand-icon {
@@ -1292,7 +1294,16 @@ input {
 }
 
 .reveal {
-  animation: fadeUp .64s var(--ease) both
+  opacity: 0;
+}
+
+.reveal.active-reveal {
+  animation: fadeUp .64s var(--ease) both;
+}
+
+#forecasting,
+#models {
+  scroll-margin-top: 24px;
 }
 
 .kpi-grid .kpi:nth-child(1) {
@@ -1781,4 +1792,40 @@ input {
 .qpp-sub small {
   color: #9a9c97;
   font-size: 10px;
+}
+
+/* Layout improvements & scroll sections */
+html {
+  scroll-behavior: smooth;
+}
+.workspace {
+  scroll-behavior: smooth;
+}
+
+.scroll-section {
+  min-height: calc(100vh - 64px);
+  margin-bottom: 64px;
+  box-sizing: border-box;
+  scroll-margin-top: 24px;
+}
+
+.hero {
+  margin-top: 12px;
+  margin-bottom: 24px;
+}
+
+#forecastDropdownWrapper {
+  margin-top: 12px;
+  margin-bottom: 24px;
+}
+
+.chart-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
