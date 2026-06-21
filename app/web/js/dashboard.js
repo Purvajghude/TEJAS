@@ -57,7 +57,6 @@
   $('footerMeta').textContent = `SoLEXS · HEL1OS · GOES · ${safe(meta.nDays, 0)} days`;
   $('calR').textContent = D.calib && D.calib.r != null ? D.calib.r.toFixed(3) : '—';
   $('latestClass').textContent = latest.cls || '—';
-  $('latestClass').style.color = classColor[latest.letter] || '#f7f4ea';
   $('latestEvent').textContent = latest.id ? `${latest.id} · GOES ${latest.clsGoes || latest.cls}` : 'Awaiting data';
   $('latestTime').textContent = shortDate(latest.t);
   $('outlookAuc').textContent = auc15 != null ? `${auc15.toFixed(2)} AUC` : '— AUC';
@@ -95,6 +94,13 @@
   navItems.forEach(item => item.addEventListener('click', () => {
     navItems.forEach(n => n.classList.remove('active'));
     item.classList.add('active');
+    if (item.getAttribute('href') === '#forecasting') {
+      const fdContainer = $('forecastDropdown');
+      const fdBtn = $('forecastDropdownBtn');
+      if (fdContainer && fdBtn && !fdContainer.classList.contains('is-open')) {
+        fdBtn.click();
+      }
+    }
   }));
 
   // ECharts theme helpers.
@@ -231,7 +237,6 @@
   function announce(fl) {
     const letter = fl.letter || 'C';
     $('activeClass').textContent = fl.cls || 'Solar flare';
-    $('activeClass').style.color = classColor[letter] || '#10100f';
     $('activeLabel').textContent = `${fl.id || 'Event'} · ${shortDate(fl.t)}`;
     $('statusText').textContent = `NOWCAST · ${fl.cls || 'Flare'} detected`;
     feedEl.insertAdjacentHTML('afterbegin', feedItem(fl));
@@ -285,7 +290,7 @@
   if (mc && mc.ranking) {
     const names = { logistic: 'Logistic regression', rf: 'Random forest', lgbm: 'LightGBM', tcn_transfer: 'GOES → TCN transfer' };
     $('leaderboard').innerHTML = mc.ranking.map((r, idx) => `
-      <div class="lb-row${r.model === mc.winner ? ' lb-win' : ''}" style="animation-delay:${idx * 60}ms">
+      <div class="lb-row lb-win" style="animation-delay:${idx * 60}ms">
         <span>${names[r.model] || r.model}</span><b>${safe(r.auc)}</b>
       </div>`).join('');
   }
@@ -478,4 +483,39 @@
     if (event.key === 'Escape') closeExpanded();
   });
   window.addEventListener('resize', () => resizeCharts(40));
+
+  const fdBtn = $('forecastDropdownBtn');
+  const fdContainer = $('forecastDropdown');
+  if (fdBtn && fdContainer) {
+    // Start fully hidden (no space taken)
+    fdContainer.style.display = 'none';
+    fdContainer.style.maxHeight = '0';
+    fdContainer.style.opacity = '0';
+
+    fdBtn.addEventListener('click', () => {
+      const isOpen = fdContainer.classList.contains('is-open');
+      if (isOpen) {
+        fdContainer.style.maxHeight = '0';
+        fdContainer.style.opacity = '0';
+        fdContainer.classList.remove('is-open');
+        fdBtn.querySelector('span').style.transform = 'rotate(0deg)';
+        // Hide after transition ends so it takes no space
+        fdContainer.addEventListener('transitionend', function hide() {
+          if (!fdContainer.classList.contains('is-open')) {
+            fdContainer.style.display = 'none';
+          }
+          fdContainer.removeEventListener('transitionend', hide);
+        });
+      } else {
+        fdContainer.style.display = 'grid';
+        // Allow paint before animating
+        requestAnimationFrame(() => {
+          fdContainer.style.maxHeight = '1500px';
+          fdContainer.style.opacity = '1';
+        });
+        fdContainer.classList.add('is-open');
+        fdBtn.querySelector('span').style.transform = 'rotate(180deg)';
+      }
+    });
+  }
 })();
