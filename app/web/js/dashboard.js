@@ -445,6 +445,11 @@
   const t0 = light.t && light.t.length ? Date.parse(light.t[0]) : Date.now();
   const t1 = light.t && light.t.length ? Date.parse(light.t[light.t.length - 1]) : Date.now();
   const span = Math.max(1, t1 - t0);
+  
+  let t0_active = t0;
+  let t1_active = t1;
+  let span_active = span;
+
   const duration = 75;
   let playing = false;
   let cur = t1;
@@ -453,6 +458,122 @@
   let fcArmed = true;   // re-arms when risk drops below threshold (one alert per rise)
   const slider = $('timeline');
   const playBtn = $('playBtn');
+
+  // Keep a copy of original raw data for filtering and resetting
+  const originalLight = {
+    t: [...light.t],
+    counts: [...light.counts],
+    hard: [...light.hard],
+    xrsb: [...light.xrsb]
+  };
+  const originalFcurve = [...fcurve];
+
+  // Helper to format Date to datetime-local local string: YYYY-MM-DDTHH:mm:ss
+  function toLocalISOString(d) {
+    const pad = num => String(num).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  // Setup Date inputs and listeners
+  const filterStartInput = $('filterStart');
+  const filterEndInput = $('filterEnd');
+  const applyFilterBtn = $('applyFilterBtn');
+  const resetFilterBtn = $('resetFilterBtn');
+
+  if (filterStartInput && filterEndInput) {
+    const minMaxStart = toLocalISOString(new Date(t0));
+    const minMaxEnd = toLocalISOString(new Date(t1));
+
+    filterStartInput.value = minMaxStart;
+    filterEndInput.value = minMaxEnd;
+    filterStartInput.min = minMaxStart;
+    filterStartInput.max = minMaxEnd;
+    filterEndInput.min = minMaxStart;
+    filterEndInput.max = minMaxEnd;
+  }
+
+  if (applyFilterBtn && resetFilterBtn) {
+    applyFilterBtn.addEventListener('click', () => {
+      const startVal = filterStartInput.value;
+      const endVal = filterEndInput.value;
+      if (!startVal || !endVal) return;
+
+      const startMs = Date.parse(startVal);
+      const endMs = Date.parse(endVal);
+
+      if (isNaN(startMs) || isNaN(endMs)) return;
+      if (startMs >= endMs) {
+        alert('Start date must be before the End date.');
+        return;
+      }
+
+      // Update active boundaries
+      t0_active = startMs;
+      t1_active = endMs;
+      span_active = Math.max(1, t1_active - t0_active);
+
+      // Filter dataset
+      const filteredT = [];
+      const filteredCounts = [];
+      const filteredHard = [];
+      const filteredXrsb = [];
+
+      for (let i = 0; i < originalLight.t.length; i++) {
+        const tMs = Date.parse(originalLight.t[i]);
+        if (tMs >= startMs && tMs <= endMs) {
+          filteredT.push(originalLight.t[i]);
+          filteredCounts.push(originalLight.counts[i]);
+          filteredHard.push(originalLight.hard[i]);
+          filteredXrsb.push(originalLight.xrsb[i]);
+        }
+      }
+
+      const filteredFcurve = originalFcurve.filter(([ms]) => ms >= startMs && ms <= endMs);
+
+      // Redraw ECharts instance
+      lightChart.setOption({
+        series: [
+          { data: filteredT.map((t, i) => [t, positive(filteredCounts[i])]) },
+          { data: hasHard ? filteredT.map((t, i) => [t, positive(filteredHard[i])]) : [] },
+          { data: filteredT.map((t, i) => [t, positive(filteredXrsb[i])]) },
+          { data: filteredFcurve.map(([ms, p]) => [new Date(ms).toISOString(), p]) }
+        ]
+      });
+
+      // Update timeline cursor
+      playing = false;
+      playBtn.querySelector('.play-symbol').textContent = '▶';
+      playBtn.querySelector('.play-label').textContent = 'Replay campaign';
+      jump(t0_active);
+    });
+
+    resetFilterBtn.addEventListener('click', () => {
+      const minMaxStart = toLocalISOString(new Date(t0));
+      const minMaxEnd = toLocalISOString(new Date(t1));
+
+      filterStartInput.value = minMaxStart;
+      filterEndInput.value = minMaxEnd;
+
+      t0_active = t0;
+      t1_active = t1;
+      span_active = span;
+
+      // Restore ECharts instance full raw data
+      lightChart.setOption({
+        series: [
+          { data: originalLight.t.map((t, i) => [t, positive(originalLight.counts[i])]) },
+          { data: hasHard ? originalLight.t.map((t, i) => [t, positive(originalLight.hard[i])]) : [] },
+          { data: originalLight.t.map((t, i) => [t, positive(originalLight.xrsb[i])]) },
+          { data: originalFcurve.map(([ms, p]) => [new Date(ms).toISOString(), p]) }
+        ]
+      });
+
+      playing = false;
+      playBtn.querySelector('.play-symbol').textContent = '▶';
+      playBtn.querySelector('.play-label').textContent = 'Replay campaign';
+      jump(t1_active);
+    });
+  }
 
   function setCampaignClock(ms) {
     const d = new Date(ms);
@@ -472,7 +593,7 @@
     setCampaignClock(ms);
     cursor(ms, true);
     updateMcBars(ms);
-    slider.value = ((ms - t0) / span) * 1000;
+    slider.value = ((ms - t0_active) / span_active) * 1000;
   }
 
   let lastTickTime = null;
@@ -489,7 +610,7 @@
     const elapsedRealMs = (timestamp || performance.now()) - lastTickTime;
     lastTickTime = timestamp || performance.now();
 
-    const dtMs = (span / (duration * 1000)) * elapsedRealMs;
+    const dtMs = (span_active / (duration * 1000)) * elapsedRealMs;
     cur += dtMs;
     for (const fl of flares) {
       const ms = Date.parse(fl.t);
@@ -506,8 +627,8 @@
     prev = cur;
     setCampaignClock(cur);
     cursor(cur);
-    slider.value = ((cur - t0) / span) * 1000;
-    if (cur >= t1) {
+    slider.value = ((cur - t0_active) / span_active) * 1000;
+    if (cur >= t1_active) {
       playing = false;
       playBtn.querySelector('.play-symbol').textContent = '▶';
       playBtn.querySelector('.play-label').textContent = 'Replay campaign';
@@ -523,13 +644,13 @@
     playing = false;
     playBtn.querySelector('.play-symbol').textContent = '▶';
     playBtn.querySelector('.play-label').textContent = 'Replay campaign';
-    jump(t0 + (Number(slider.value) / 1000) * span);
+    jump(t0_active + (Number(slider.value) / 1000) * span_active);
   });
   playBtn.addEventListener('click', () => {
     playing = !playing;
     if (playing) {
-      if (cur >= t1) {
-        cur = t0;
+      if (cur >= t1_active) {
+        cur = t0_active;
         prev = cur;
         fcArmed = true;
         feedEl.innerHTML = '';

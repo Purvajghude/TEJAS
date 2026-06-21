@@ -1829,3 +1829,168 @@ html {
   flex-direction: column;
   justify-content: center;
 }
+
+/* ── Date Range Filter ── */
+.chart-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(255,255,255,.05) 0%, rgba(255,255,255,.02) 100%);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.filter-label-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 10px;
+  background: rgba(178,138,74,.14);
+  border: 1px solid rgba(178,138,74,.22);
+  border-radius: 8px;
+  color: #c9a96e;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.filter-label-tag svg {
+  opacity: .8;
+}
+
+.filter-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.filter-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(247,244,234,.28);
+  flex-shrink: 0;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: relative;
+}
+
+.filter-field label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: rgba(247,244,234,.36);
+  padding-left: 2px;
+}
+
+/* Force the native datetime picker to render dark */
+.filter-field input[type="datetime-local"] {
+  color-scheme: dark;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(16,16,15,.72);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: rgba(247,244,234,.92);
+  font-size: 12px;
+  font-weight: 550;
+  font-family: inherit;
+  letter-spacing: .01em;
+  outline: none;
+  min-width: 200px;
+  transition: border-color .3s var(--ease), box-shadow .3s var(--ease), background .3s var(--ease);
+}
+
+.filter-field input[type="datetime-local"]:hover {
+  background: rgba(16,16,15,.85);
+  border-color: rgba(255,255,255,.16);
+}
+
+.filter-field input[type="datetime-local"]:focus {
+  border-color: rgba(178,138,74,.55);
+  box-shadow: 0 0 0 3px rgba(178,138,74,.12), 0 4px 16px rgba(0,0,0,.2);
+  background: rgba(16,16,15,.92);
+}
+
+/* Style the calendar icon inside the input (Webkit/Blink) */
+.filter-field input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(.7) sepia(.2) saturate(.4) hue-rotate(10deg);
+  opacity: .6;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.filter-field input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: 9px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+  transition: transform .18s var(--ease), background .22s var(--ease), box-shadow .22s var(--ease), border-color .22s var(--ease);
+}
+
+.filter-btn:active {
+  transform: scale(.95);
+}
+
+.filter-btn svg {
+  flex-shrink: 0;
+}
+
+/* Primary: warm accent matching the Forecast risk line */
+.filter-btn-primary {
+  background: linear-gradient(135deg, #c9a96e 0%, #b28a4a 100%);
+  color: #10100f;
+  box-shadow: 0 2px 10px rgba(178,138,74,.22);
+}
+
+.filter-btn-primary:hover {
+  background: linear-gradient(135deg, #d4b87a 0%, #c19855 100%);
+  box-shadow: 0 4px 18px rgba(178,138,74,.32);
+}
+
+/* Ghost: transparent dark */
+.filter-btn-ghost {
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  color: rgba(247,244,234,.72);
+}
+
+.filter-btn-ghost:hover {
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.18);
+  color: rgba(247,244,234,.92);
+}
