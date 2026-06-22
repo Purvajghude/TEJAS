@@ -5,7 +5,7 @@
   const fmt = new Intl.NumberFormat('en', { maximumFractionDigits: 1 });
   const fmtInt = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
   const classColor = { A: '#aaa79c', B: '#aaa79c', C: '#b28a4a', M: '#a8614b', X: '#10100f' };
-  
+
   function getFlareDescription(cls) {
     if (!cls || cls === '—') return 'No Flare';
     const letter = cls.charAt(0).toUpperCase();
@@ -100,7 +100,7 @@
         badge.classList.add('badge-red');
       }
     }
-    
+
     // System Status
     const sysBadge = $('systemStatusBadge');
     if (sysBadge) {
@@ -149,12 +149,12 @@
 
   // Forecast stats.
   const fcStats = [
-    [auc15 != null ? auc15.toFixed(2) : '—', 'AUC @15m'],
-    [medianLead != null ? `${medianLead}m` : '—', 'Median lead'],
-    [fc.eventRecall != null ? pct(fc.eventRecall) : '—', 'M+ event recall'],
-    [wf.ROC_AUC_mean != null ? wf.ROC_AUC_mean.toFixed(2) : '—', 'Walk-forward AUC'],
+    [auc15 != null ? auc15.toFixed(2) : '—', 'AUC @15m', 'Detection accuracy at 15min lead'],
+    [medianLead != null ? `${medianLead}m` : '—', 'Median lead', 'Average warning time before flare'],
+    [fc.eventRecall != null ? pct(fc.eventRecall) : '—', 'M+ event recall', '% of major flares caught'],
+    [wf.ROC_AUC_mean != null ? wf.ROC_AUC_mean.toFixed(2) : '—', 'Walk-forward AUC', 'Real-world simulation accuracy'],
   ];
-  $('fcStats').innerHTML = fcStats.map(([v, l]) => `<div class="valcell"><div class="v">${v}</div><div class="l">${l}</div></div>`).join('');
+  $('fcStats').innerHTML = fcStats.map(([v, l, d]) => `<div class="valcell"><div class="v">${v}</div><div class="l">${l}</div><div class="valcell-desc">${d}</div></div>`).join('');
 
   // Navigation active state / Scroll tracking.
   const navItems = document.querySelectorAll('.nav-item');
@@ -173,7 +173,7 @@
     }
 
     targetElement.scrollIntoView({ behavior: 'smooth' });
-    
+
     // Update hash without jumping
     if (history.pushState) {
       history.pushState(null, null, targetId);
@@ -316,24 +316,33 @@
       { type: 'value', min: 0, max: 1, position: 'right', offset: 0, show: false }
     ],
     series: [
-      { name: 'SoLEXS soft', type: 'line', showSymbol: false, sampling: 'lttb', smooth: .18,
+      {
+        name: 'SoLEXS soft', type: 'line', showSymbol: false, sampling: 'lttb', smooth: .18,
         data: light.t.map((t, i) => [t, positive(light.counts[i])]),
         lineStyle: { color: '#f7f4ea', width: 1.65 }, areaStyle: { color: 'rgba(247,244,234,.10)' },
-        markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: 'rgba(247,244,234,.72)', width: 1.4 }, data: [] } },
-      { name: 'HEL1OS hard', type: 'line', showSymbol: false, sampling: 'lttb', smooth: .12,
+        markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: 'rgba(247,244,234,.72)', width: 1.4 }, data: [] }
+      },
+      {
+        name: 'HEL1OS hard', type: 'line', showSymbol: false, sampling: 'lttb', smooth: .12,
         data: hasHard ? light.t.map((t, i) => [t, positive(light.hard[i])]) : [],
-        lineStyle: { color: '#c98265', width: 1.35 }, areaStyle: { color: 'rgba(201,130,101,.09)' } },
-      { name: 'GOES', type: 'line', yAxisIndex: 1, showSymbol: false, sampling: 'lttb', smooth: .2,
+        lineStyle: { color: '#c98265', width: 1.35 }, areaStyle: { color: 'rgba(201,130,101,.09)' }
+      },
+      {
+        name: 'GOES', type: 'line', yAxisIndex: 1, showSymbol: false, sampling: 'lttb', smooth: .2,
         data: light.t.map((t, i) => [t, positive(light.xrsb[i])]),
         lineStyle: { color: '#a8b49c', width: 1.35 }
       },
-      { name: 'Forecast risk', type: 'line', yAxisIndex: 2, showSymbol: false, sampling: 'lttb', smooth: .15,
+      {
+        name: 'Forecast risk', type: 'line', yAxisIndex: 2, showSymbol: false, sampling: 'lttb', smooth: .15,
         data: fcurve.map(([ms, p]) => [new Date(ms).toISOString(), p]),
         lineStyle: { color: '#b28a4a', width: 1.2, opacity: .9 }, areaStyle: { color: 'rgba(178,138,74,.10)' },
-        markLine: fcThreshold != null ? { silent: true, symbol: 'none',
+        markLine: fcThreshold != null ? {
+          silent: true, symbol: 'none',
           lineStyle: { color: 'rgba(178,138,74,.55)', width: 1, type: 'dashed' },
           label: { formatter: 'alert', color: 'rgba(178,138,74,.8)', fontSize: 9 },
-          data: [{ yAxis: fcThreshold }] } : { data: [] } }
+          data: [{ yAxis: fcThreshold }]
+        } : { data: [] }
+      }
     ]
   });
 
@@ -368,37 +377,37 @@
   const viewPieBtn = $('viewPieBtn');
   const chartLightEl = $('chartLight');
   const chartPieEl = $('chartPie');
-  
+
   if (viewGraphBtn && viewPieBtn) {
     viewGraphBtn.addEventListener('click', () => {
       viewGraphBtn.style.border = '1px solid rgba(255,255,255,0.2)';
       viewGraphBtn.style.background = 'rgba(255,255,255,0.1)';
       viewGraphBtn.style.color = '#fff';
-      
+
       viewPieBtn.style.border = '1px solid transparent';
       viewPieBtn.style.background = 'transparent';
       viewPieBtn.style.color = 'rgba(255,255,255,0.6)';
-      
+
       chartLightEl.style.display = 'block';
       chartPieEl.style.display = 'block'; // echarts requires block to resize properly
       chartPieEl.style.position = 'absolute';
       chartPieEl.style.visibility = 'hidden';
-      
+
       chartPieEl.style.display = 'none';
       chartPieEl.style.position = 'static';
       chartPieEl.style.visibility = 'visible';
       resizeCharts(10);
     });
-    
+
     viewPieBtn.addEventListener('click', () => {
       viewPieBtn.style.border = '1px solid rgba(255,255,255,0.2)';
       viewPieBtn.style.background = 'rgba(255,255,255,0.1)';
       viewPieBtn.style.color = '#fff';
-      
+
       viewGraphBtn.style.border = '1px solid transparent';
       viewGraphBtn.style.background = 'transparent';
       viewGraphBtn.style.color = 'rgba(255,255,255,0.6)';
-      
+
       chartLightEl.style.display = 'none';
       chartPieEl.style.display = 'block';
       resizeCharts(10);
@@ -409,7 +418,7 @@
     let idx = 0;
     if (originalLight.t && originalLight.t.length) {
       let lo = 0, hi = originalLight.t.length - 1;
-      while(lo <= hi) {
+      while (lo <= hi) {
         const mid = (lo + hi) >> 1;
         if (Date.parse(originalLight.t[mid]) <= ms) { idx = mid; lo = mid + 1; }
         else { hi = mid - 1; }
@@ -419,7 +428,7 @@
     const valHel1os = (hasHard && originalLight.hard[idx]) ? originalLight.hard[idx] : 0;
     const valGoes = originalLight.xrsb[idx] || 0;
     const valForecast = typeof forecastAt === 'function' ? forecastAt(ms) : 0;
-    
+
     pieChart.setOption({
       series: [{
         data: [
@@ -434,15 +443,57 @@
 
   const letters = ['A', 'B', 'C', 'M', 'X'];
   const distChart = registerChart('chartDist', echarts.init($('chartDist')));
-  distChart.setOption({
-    backgroundColor: 'transparent', animationDuration: 900, animationEasing: 'cubicOut',
-    grid: { left: 42, right: 18, top: 20, bottom: 34 }, tooltip: { trigger: 'axis', ...lightTooltip },
-    xAxis: { type: 'category', data: letters, ...lightAxis }, yAxis: { type: 'value', ...lightAxis },
-    series: [{ type: 'bar', barWidth: '50%', data: letters.map(l => ({
-      value: (D.dist && D.dist[l]) || 0,
-      itemStyle: { color: classColor[l] || '#aaa79c', borderRadius: [12, 12, 0, 0] }
-    })) }]
-  });
+  const distCardEl = distChart.getDom().closest('.chart-card');
+
+  function renderDistChart(counts) {
+    const total = letters.reduce((s, l) => s + (counts[l] || 0), 0);
+    distChart.setOption({
+      backgroundColor: 'transparent', animationDuration: 900, animationEasing: 'cubicOut',
+      grid: { left: 48, right: 24, top: 40, bottom: 38 },
+      tooltip: {
+        trigger: 'axis', ...lightTooltip,
+        formatter: function (params) {
+          const p = params[0];
+          const val = p.value;
+          const pctVal = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+          return `Class ${p.name} \u00b7 ${fmtInt.format(val)} flares (${pctVal}%)`;
+        }
+      },
+      xAxis: { type: 'category', data: letters, ...lightAxis },
+      yAxis: { type: 'value', ...lightAxis },
+      series: [{
+        type: 'bar', barWidth: '50%', barMinHeight: 4, label: {
+          show: true, position: 'top', fontSize: 10, fontWeight: 700, color: '#555',
+          formatter: function (p) { return fmtInt.format(p.value); }
+        }, data: letters.map(l => ({
+          value: counts[l] || 0,
+          itemStyle: { color: classColor[l] || '#aaa79c', borderRadius: [12, 12, 0, 0] }
+        }))
+      }]
+    });
+  }
+
+  // Initial render with full dataset
+  const initialDistCounts = {};
+  letters.forEach(l => { initialDistCounts[l] = (D.dist && D.dist[l]) || 0; });
+  renderDistChart(initialDistCounts);
+
+  function updateDistFromFlares(startMs, endMs) {
+    const counts = { A: 0, B: 0, C: 0, M: 0, X: 0 };
+    flares.forEach(fl => {
+      const ms = Date.parse(fl.t);
+      if (ms >= startMs && ms <= endMs) {
+        const letter = fl.letter || (fl.cls ? fl.cls.charAt(0).toUpperCase() : null);
+        if (letter && counts[letter] !== undefined) counts[letter]++;
+      }
+    });
+    // Loading flicker
+    if (distCardEl) {
+      distCardEl.classList.add('card-loading');
+      setTimeout(() => distCardEl.classList.remove('card-loading'), 600);
+    }
+    renderDistChart(counts);
+  }
 
   const calibChart = registerChart('chartCalib', echarts.init($('chartCalib')));
   const scatter = D.scatter || [];
@@ -457,12 +508,27 @@
   }
   calibChart.setOption({
     backgroundColor: 'transparent', animationDuration: 950, animationEasing: 'cubicOut',
-    grid: { left: 58, right: 20, top: 16, bottom: 36 }, tooltip: { trigger: 'item', ...lightTooltip },
-    xAxis: { type: 'log', name: 'counts', nameLocation: 'middle', nameGap: 22, nameTextStyle: { color: '#858781', fontSize: 10, fontWeight: 700 }, ...lightAxis },
-    yAxis: { type: 'log', name: 'GOES W/m²', nameTextStyle: { color: '#858781', fontSize: 10, fontWeight: 700 }, ...lightAxis },
+    grid: { left: 74, right: 28, top: 38, bottom: 52 }, tooltip: { trigger: 'item', ...lightTooltip },
+    legend: {
+      top: 4, right: 10, itemWidth: 10, itemHeight: 10,
+      textStyle: { color: '#858781', fontSize: 9, fontWeight: 600 },
+      data: ['A/B class', 'C class', 'M class', 'X class']
+    },
+    xAxis: { type: 'log', name: 'SoLEXS counts (raw detector units, log scale)', nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: '#858781', fontSize: 9, fontWeight: 700 }, ...lightAxis },
+    yAxis: { type: 'log', name: 'GOES X-ray flux W/m\u00b2 (log scale)', nameLocation: 'middle', nameGap: 52, nameTextStyle: { color: '#858781', fontSize: 9, fontWeight: 700 }, ...lightAxis },
     series: [
-      { type: 'scatter', symbolSize: 7, data: scatter.map(p => ({ value: [p[0], p[1]], itemStyle: { color: classColor[p[2]] || '#858781', opacity: .78 } })) },
-      { type: 'line', showSymbol: false, data: line, lineStyle: { color: '#10100f', width: 2, type: 'dashed' } }
+      { name: 'A/B class', type: 'scatter', symbolSize: 7, data: scatter.filter(p => p[2] === 'A' || p[2] === 'B').map(p => ({ value: [p[0], p[1]], itemStyle: { color: classColor[p[2]] || '#aaa79c', opacity: .78 } })) },
+      { name: 'C class', type: 'scatter', symbolSize: 7, data: scatter.filter(p => p[2] === 'C').map(p => ({ value: [p[0], p[1]], itemStyle: { color: classColor['C'], opacity: .78 } })) },
+      { name: 'M class', type: 'scatter', symbolSize: 7, data: scatter.filter(p => p[2] === 'M').map(p => ({ value: [p[0], p[1]], itemStyle: { color: classColor['M'], opacity: .78 } })) },
+      { name: 'X class', type: 'scatter', symbolSize: 7, data: scatter.filter(p => p[2] === 'X').map(p => ({ value: [p[0], p[1]], itemStyle: { color: classColor['X'], opacity: .78 } })) },
+      {
+        name: 'Fit line', type: 'line', showSymbol: false, data: line, lineStyle: { color: '#10100f', width: 2, type: 'dashed' },
+        markPoint: {
+          symbol: 'rect', symbolSize: 0,
+          label: { show: true, formatter: 'Perfect agreement', fontSize: 9, fontWeight: 600, color: 'rgba(16,16,15,.45)', offset: [0, 8] },
+          data: line.length ? [{ coord: line[line.length - 1] }] : []
+        }
+      }
     ]
   });
 
@@ -470,13 +536,24 @@
   const sc = fc.skillCurve || [];
   forecastChart.setOption({
     backgroundColor: 'transparent', animationDuration: 1000, animationEasing: 'cubicOut',
-    grid: { left: 38, right: 22, top: 34, bottom: 32 }, tooltip: { trigger: 'axis', ...lightTooltip },
+    grid: { left: 48, right: 28, top: 40, bottom: 38 },
+    tooltip: {
+      trigger: 'axis', ...lightTooltip,
+      formatter: function (params) {
+        let tip = `<b>${params[0].name}</b><br/>`;
+        params.forEach(p => {
+          const dot = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>`;
+          tip += `${dot}${p.seriesName}: <b>${p.value != null ? (typeof p.value === 'number' ? p.value.toFixed(3) : p.value) : '—'}</b><br/>`;
+        });
+        return tip;
+      }
+    },
     legend: { top: 0, right: 0, itemWidth: 16, itemHeight: 8, textStyle: { color: '#767873', fontSize: 10, fontWeight: 650 } },
     xAxis: { type: 'category', data: sc.map(s => `${s.h}m`), ...lightAxis },
     yAxis: { type: 'value', min: 0, max: 1, ...lightAxis },
     series: [
       { name: 'AUC soft+hard', type: 'line', symbol: 'circle', symbolSize: 7, data: sc.map(s => s.auc), lineStyle: { color: '#10100f', width: 2.3 }, itemStyle: { color: '#10100f' }, areaStyle: { color: 'rgba(16,16,15,.055)' } },
-      { name: 'AUC soft', type: 'line', symbol: 'none', data: sc.map(s => s.aucSoft), lineStyle: { color: '#9a9c97', width: 1.6, type: 'dashed' } },
+      { name: 'AUC soft', type: 'line', symbol: 'circle', symbolSize: 5, data: sc.map(s => s.aucSoft), lineStyle: { color: '#4a90d9', width: 1.8, type: 'dashed' }, itemStyle: { color: '#4a90d9' } },
       { name: 'Precision', type: 'line', symbol: 'circle', symbolSize: 6, data: sc.map(s => s.precision), lineStyle: { color: '#a8614b', width: 1.9 }, itemStyle: { color: '#a8614b' } }
     ]
   });
@@ -487,7 +564,7 @@
     const desc = getFlareDescription(fl.cls);
     const duration = fl.durMin != null ? `${fl.durMin.toFixed(1)} minutes` : '—';
     const dateFormatted = shortDate(fl.t);
-    
+
     // Calculate earth impact
     let impact = 'No Earth impact';
     if (letter === 'C') impact = 'Minimal Earth impact';
@@ -546,7 +623,7 @@
     $('activeClass').textContent = fl.cls || 'Solar flare';
     $('activeLabel').textContent = `${fl.id || 'Event'} · ${shortDate(fl.t)}`;
     $('statusText').textContent = `NOWCAST · ${fl.cls || 'Flare'} detected`;
-    
+
     // Update Solar Status Card dynamically
     $('latestClass').textContent = fl.cls || '—';
     if ($('latestFlareDesc')) $('latestFlareDesc').textContent = getFlareDescription(fl.cls);
@@ -578,7 +655,7 @@
     const nxt = nextFlareLead(ms);
     const riskPct = Math.round(prob * 100);
     const leadTxt = nxt ? `~${nxt.lead} min lead → ${nxt.cls} onset`
-                        : 'elevated flare probability';
+      : 'elevated flare probability';
     $('statusText').textContent = `FORECAST · ${riskPct}% flare risk`;
 
     let confidence = '95.0%';
@@ -699,7 +776,7 @@
   const t0 = light.t && light.t.length ? Date.parse(light.t[0]) : Date.now();
   const t1 = light.t && light.t.length ? Date.parse(light.t[light.t.length - 1]) : Date.now();
   const span = Math.max(1, t1 - t0);
-  
+
   let t0_active = t0;
   let t1_active = t1;
   let span_active = span;
@@ -725,7 +802,7 @@
   // Helper to format Date to datetime-local local string: YYYY-MM-DDTHH:mm:ss
   function toLocalISOString(d) {
     const pad = num => String(num).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   }
 
   // Setup Date inputs and listeners
@@ -746,7 +823,7 @@
       minDate: initStart,
       maxDate: initEnd,
       time_24hr: true,
-      onReady: function(selectedDates, dateStr, instance) {
+      onReady: function (selectedDates, dateStr, instance) {
 
         // Inject custom month/year label
         const monthContainer = instance.monthNav;
@@ -769,7 +846,7 @@
           { el: instance.minuteElement, max: 59 },
           { el: instance.secondElement, max: 59 }
         ];
-        
+
         inputs.forEach(({ el, max }) => {
           if (!el) return;
           const wrapper = el.parentNode;
@@ -779,9 +856,9 @@
           next.className = 'slot-next';
           wrapper.appendChild(prev);
           wrapper.appendChild(next);
-          
+
           el.dataset.max = max; // store max for easy access
-          
+
           const updateSlots = () => {
             let val = parseInt(el.value, 10) || 0;
             let p = val - 1;
@@ -791,9 +868,9 @@
             prev.textContent = p.toString().padStart(2, '0');
             next.textContent = n.toString().padStart(2, '0');
           };
-          
+
           el.addEventListener('input', updateSlots);
-          
+
           // Override wheel event for infinite looping
           wrapper.addEventListener('wheel', (e) => {
             e.preventDefault();
@@ -807,18 +884,18 @@
             el.dispatchEvent(new Event('blur', { bubbles: true })); // Commit change to flatpickr
             updateSlots();
           }, { passive: false });
-          
+
           updateSlots();
         });
       },
-      
-      onMonthChange: function(selectedDates, dateStr, instance) {
+
+      onMonthChange: function (selectedDates, dateStr, instance) {
         if (instance.updateCustomLabel) instance.updateCustomLabel();
       },
-      onYearChange: function(selectedDates, dateStr, instance) {
+      onYearChange: function (selectedDates, dateStr, instance) {
         if (instance.updateCustomLabel) instance.updateCustomLabel();
       },
-      onValueUpdate: function(selectedDates, dateStr, instance) {
+      onValueUpdate: function (selectedDates, dateStr, instance) {
         // Trigger slot updates when time changes via flatpickr API/keyboard
         [instance.hourElement, instance.minuteElement, instance.secondElement].forEach(el => {
           if (el) el.dispatchEvent(new Event('input'));
@@ -883,6 +960,9 @@
       playBtn.querySelector('.play-symbol').textContent = '▶';
       playBtn.querySelector('.play-label').textContent = 'Replay campaign';
       jump(t0_active);
+
+      // Update flares-by-class bar chart
+      updateDistFromFlares(startMs, endMs);
     });
 
     resetFilterBtn.addEventListener('click', () => {
@@ -907,6 +987,9 @@
       playBtn.querySelector('.play-symbol').textContent = '▶';
       playBtn.querySelector('.play-label').textContent = 'Replay campaign';
       jump(t1_active);
+
+      // Restore flares-by-class bar chart to full data
+      renderDistChart(initialDistCounts);
     });
   }
 
@@ -1027,7 +1110,7 @@
       // Animate back to its origin layout
       card.style.transition = 'transform 0.46s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.46s cubic-bezier(0.16, 1, 0.3, 1)';
       card.style.transform = `translate(${invertX}px, ${invertY}px) scale(${scaleX}, ${scaleY})`;
-      
+
       const btn = card.querySelector('.expand-btn');
       if (btn) btn.setAttribute('aria-expanded', 'false');
       backdrop.classList.remove('visible');
@@ -1070,7 +1153,7 @@
     const card = button.closest('.chart-card');
     if (!card) return;
     if (expandedCard === card) { closeExpanded(); return; }
-    
+
     // Close any already expanded cards immediately
     if (expandedCard) {
       const prev = expandedCard;
