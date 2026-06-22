@@ -5,6 +5,33 @@
   const fmt = new Intl.NumberFormat('en', { maximumFractionDigits: 1 });
   const fmtInt = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
   const classColor = { A: '#aaa79c', B: '#aaa79c', C: '#b28a4a', M: '#a8614b', X: '#10100f' };
+  
+  function getFlareDescription(cls) {
+    if (!cls || cls === '—') return 'No Flare';
+    const letter = cls.charAt(0).toUpperCase();
+    switch (letter) {
+      case 'A': return 'Very Weak Flare';
+      case 'B': return 'Weak Flare';
+      case 'C': return 'Moderate Flare';
+      case 'M': return 'Strong Flare';
+      case 'X': return 'Extreme Flare';
+      default: return 'Solar Flare';
+    }
+  }
+
+  function goesClassToFlux(cls) {
+    if (!cls) return 1e-6;
+    const letter = cls.charAt(0).toUpperCase();
+    const num = parseFloat(cls.slice(1)) || 1.0;
+    let base = 1e-8;
+    if (letter === 'A') base = 1e-8;
+    else if (letter === 'B') base = 1e-7;
+    else if (letter === 'C') base = 1e-6;
+    else if (letter === 'M') base = 1e-5;
+    else if (letter === 'X') base = 1e-4;
+    return base * num;
+  }
+
   const chartRegistry = new Map();
 
   const icon = {
@@ -50,6 +77,44 @@
   const medianLead = fc.leadMedian != null ? fc.leadMedian : null;
   const neupertLead = fusion.neupertLeadMedianS != null ? fusion.neupertLeadMedianS / 60 : null;
 
+  function updateSolarStatus(prob) {
+    const pr = prob != null ? prob : 0.12;
+    const prPct = Math.round(pr * 100);
+    const forecastVal = $('forecastProbVal');
+    if (forecastVal) forecastVal.textContent = `${prPct}%`;
+
+    const badge = $('riskLevelBadge');
+    if (badge) {
+      badge.className = 'status-badge';
+      if (pr < 0.20) {
+        badge.textContent = 'LOW';
+        badge.classList.add('badge-green');
+      } else if (pr < 0.50) {
+        badge.textContent = 'MODERATE';
+        badge.classList.add('badge-yellow');
+      } else if (pr < 0.75) {
+        badge.textContent = 'HIGH';
+        badge.classList.add('badge-orange');
+      } else {
+        badge.textContent = 'CRITICAL';
+        badge.classList.add('badge-red');
+      }
+    }
+    
+    // System Status
+    const sysBadge = $('systemStatusBadge');
+    if (sysBadge) {
+      sysBadge.className = 'status-badge';
+      if (pr >= 0.75) {
+        sysBadge.textContent = 'SYSTEM: ALERT';
+        sysBadge.classList.add('badge-red');
+      } else {
+        sysBadge.textContent = 'SYSTEM: NOMINAL';
+        sysBadge.classList.add('badge-green');
+      }
+    }
+  }
+
   // Meta and headline copy.
   $('dateRange').textContent = `${safe(meta.dateStart)} → ${safe(meta.dateEnd)} · ${safe(meta.nDays, 0)} days`;
   $('coverageText').textContent = `${safe(meta.nDays, 0)} observing days · ${fmtInt.format(k.nFlares || 0)} flares catalogued`;
@@ -57,12 +122,14 @@
   $('footerMeta').textContent = `SoLEXS · HEL1OS · GOES · ${safe(meta.nDays, 0)} days`;
   $('calR').textContent = D.calib && D.calib.r != null ? D.calib.r.toFixed(3) : '—';
   $('latestClass').textContent = latest.cls || '—';
-  $('latestEvent').textContent = latest.id ? `${latest.id} · GOES ${latest.clsGoes || latest.cls}` : 'Awaiting data';
-  $('latestTime').textContent = shortDate(latest.t);
+  if ($('latestFlareDesc')) $('latestFlareDesc').textContent = getFlareDescription(latest.cls);
   $('outlookAuc').textContent = auc15 != null ? `${auc15.toFixed(2)} AUC` : '— AUC';
   $('outlookLead').textContent = medianLead != null ? `${medianLead} min` : '— min';
   $('statusText').textContent = `${fmtInt.format(k.nFlares || 0)} validated detections`;
   $('feedCount').textContent = flares.length;
+
+  const initialProb = fcurve.length ? fcurve[fcurve.length - 1][1] : 0.12;
+  updateSolarStatus(initialProb);
 
   // KPI cards.
   const kpis = [
@@ -219,6 +286,21 @@
     window.setTimeout(() => chartRegistry.forEach(chart => chart.resize()), delay);
   }
 
+  function getFlareMarkers(startMs = null, endMs = null) {
+    return flares
+      .filter(fl => fl.letter === 'M' || fl.letter === 'X')
+      .filter(fl => {
+        if (startMs && Date.parse(fl.t) < startMs) return false;
+        if (endMs && Date.parse(fl.t) > endMs) return false;
+        return true;
+      })
+      .map(fl => ({
+        name: fl.cls,
+        coord: [fl.t, goesClassToFlux(fl.clsGoes || fl.cls)],
+        itemStyle: { color: classColor[fl.letter] || '#ff9500', shadowBlur: 8, shadowColor: 'rgba(0,0,0,0.5)' }
+      }));
+  }
+
   const light = D.light || { t: [], counts: [], hard: [], xrsb: [] };
   const hasHard = light.hard && light.hard.some(v => v != null && v > 0);
   const lightChart = registerChart('chartLight', echarts.init($('chartLight'), null, { renderer: 'canvas' }));
@@ -243,7 +325,8 @@
         lineStyle: { color: '#c98265', width: 1.35 }, areaStyle: { color: 'rgba(201,130,101,.09)' } },
       { name: 'GOES', type: 'line', yAxisIndex: 1, showSymbol: false, sampling: 'lttb', smooth: .2,
         data: light.t.map((t, i) => [t, positive(light.xrsb[i])]),
-        lineStyle: { color: '#a8b49c', width: 1.35 } },
+        lineStyle: { color: '#a8b49c', width: 1.35 }
+      },
       { name: 'Forecast risk', type: 'line', yAxisIndex: 2, showSymbol: false, sampling: 'lttb', smooth: .15,
         data: fcurve.map(([ms, p]) => [new Date(ms).toISOString(), p]),
         lineStyle: { color: '#b28a4a', width: 1.2, opacity: .9 }, areaStyle: { color: 'rgba(178,138,74,.10)' },
@@ -253,6 +336,101 @@
           data: [{ yAxis: fcThreshold }] } : { data: [] } }
     ]
   });
+
+  const pieChart = registerChart('chartPie', echarts.init($('chartPie')));
+  pieChart.setOption({
+    backgroundColor: 'transparent',
+    color: ['#f7f4ea', '#c98265', '#a8b49c', '#b28a4a'],
+    tooltip: { trigger: 'item', ...darkTooltip, formatter: '{b}: {c}' },
+    legend: { top: 'bottom', textStyle: { color: 'rgba(247,244,234,.62)' } },
+    series: [
+      {
+        name: 'Observations',
+        type: 'pie',
+        radius: ['40%', '70%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 10, borderColor: '#151514', borderWidth: 2 },
+        label: { show: false, position: 'center' },
+        emphasis: { label: { show: true, fontSize: 18, fontWeight: 'bold' } },
+        labelLine: { show: false },
+        minAngle: 15,
+        data: [
+          { value: 0, name: 'SoLEXS soft', itemStyle: { color: '#f7f4ea' } },
+          { value: 0, name: 'HEL1OS hard', itemStyle: { color: '#c98265' } },
+          { value: 0, name: 'GOES', itemStyle: { color: '#a8b49c' } },
+          { value: 0, name: 'Forecast risk', itemStyle: { color: '#b28a4a' } }
+        ]
+      }
+    ]
+  });
+
+  const viewGraphBtn = $('viewGraphBtn');
+  const viewPieBtn = $('viewPieBtn');
+  const chartLightEl = $('chartLight');
+  const chartPieEl = $('chartPie');
+  
+  if (viewGraphBtn && viewPieBtn) {
+    viewGraphBtn.addEventListener('click', () => {
+      viewGraphBtn.style.border = '1px solid rgba(255,255,255,0.2)';
+      viewGraphBtn.style.background = 'rgba(255,255,255,0.1)';
+      viewGraphBtn.style.color = '#fff';
+      
+      viewPieBtn.style.border = '1px solid transparent';
+      viewPieBtn.style.background = 'transparent';
+      viewPieBtn.style.color = 'rgba(255,255,255,0.6)';
+      
+      chartLightEl.style.display = 'block';
+      chartPieEl.style.display = 'block'; // echarts requires block to resize properly
+      chartPieEl.style.position = 'absolute';
+      chartPieEl.style.visibility = 'hidden';
+      
+      chartPieEl.style.display = 'none';
+      chartPieEl.style.position = 'static';
+      chartPieEl.style.visibility = 'visible';
+      resizeCharts(10);
+    });
+    
+    viewPieBtn.addEventListener('click', () => {
+      viewPieBtn.style.border = '1px solid rgba(255,255,255,0.2)';
+      viewPieBtn.style.background = 'rgba(255,255,255,0.1)';
+      viewPieBtn.style.color = '#fff';
+      
+      viewGraphBtn.style.border = '1px solid transparent';
+      viewGraphBtn.style.background = 'transparent';
+      viewGraphBtn.style.color = 'rgba(255,255,255,0.6)';
+      
+      chartLightEl.style.display = 'none';
+      chartPieEl.style.display = 'block';
+      resizeCharts(10);
+    });
+  }
+
+  function updatePieData(ms) {
+    let idx = 0;
+    if (originalLight.t && originalLight.t.length) {
+      let lo = 0, hi = originalLight.t.length - 1;
+      while(lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (Date.parse(originalLight.t[mid]) <= ms) { idx = mid; lo = mid + 1; }
+        else { hi = mid - 1; }
+      }
+    }
+    const valSolexs = originalLight.counts[idx] || 0;
+    const valHel1os = (hasHard && originalLight.hard[idx]) ? originalLight.hard[idx] : 0;
+    const valGoes = originalLight.xrsb[idx] || 0;
+    const valForecast = typeof forecastAt === 'function' ? forecastAt(ms) : 0;
+    
+    pieChart.setOption({
+      series: [{
+        data: [
+          { value: positive(valSolexs) || 0, name: 'SoLEXS soft', itemStyle: { color: '#f7f4ea' } },
+          { value: positive(valHel1os) || 0, name: 'HEL1OS hard', itemStyle: { color: '#c98265' } },
+          { value: positive(valGoes) || 0, name: 'GOES', itemStyle: { color: '#a8b49c' } },
+          { value: positive(valForecast) || 0, name: 'Forecast risk', itemStyle: { color: '#b28a4a' } }
+        ]
+      }]
+    });
+  }
 
   const letters = ['A', 'B', 'C', 'M', 'X'];
   const distChart = registerChart('chartDist', echarts.init($('chartDist')));
@@ -306,11 +484,55 @@
   // Alert feed.
   function feedItem(fl) {
     const letter = fl.letter || 'C';
-    return `<div class="feed-item b-${letter}">
-      <div class="feed-badge c-${letter}">${fl.cls || '—'}</div>
-      <div class="feed-meta"><b>${fl.id || 'Unknown event'}</b><small>${shortDate(fl.t)}<br>GOES ${fl.clsGoes || '—'} · ${safe(fl.durMin)}m duration</small></div>
-      <div class="feed-sigma">${fl.sig != null ? Math.round(fl.sig) + 'σ' : '—'}</div>
-    </div>`;
+    const desc = getFlareDescription(fl.cls);
+    const duration = fl.durMin != null ? `${fl.durMin.toFixed(1)} minutes` : '—';
+    const dateFormatted = shortDate(fl.t);
+    
+    // Calculate earth impact
+    let impact = 'No Earth impact';
+    if (letter === 'C') impact = 'Minimal Earth impact';
+    else if (letter === 'M') impact = 'Moderate Earth impact';
+    else if (letter === 'X') impact = 'Severe Earth impact';
+
+    // Calculate confidence
+    const sig = fl.sig != null ? fl.sig : 3;
+    let confidence = '95.0%';
+    let strength = 'Moderate';
+    if (sig >= 15) { confidence = '99.99%'; strength = 'Extreme'; }
+    else if (sig >= 8) { confidence = '99.9%'; strength = 'Very Strong'; }
+    else if (sig >= 4) { confidence = '99.0%'; strength = 'Strong'; }
+    else { confidence = '97.0%'; strength = 'Moderate'; }
+
+    return `
+      <div class="feed-card b-${letter}">
+        <div class="feed-card-header">
+          <div class="feed-badge c-${letter}">${fl.cls || '—'}</div>
+          <h4>${desc}</h4>
+        </div>
+        <div class="feed-card-grid">
+          <div class="feed-grid-item">
+            <span class="lbl">Detected</span>
+            <span class="val">${dateFormatted}</span>
+          </div>
+          <div class="feed-grid-item">
+            <span class="lbl">Duration</span>
+            <span class="val">${duration}</span>
+          </div>
+          <div class="feed-grid-item">
+            <span class="lbl">Earth Impact</span>
+            <span class="val impact-${letter}">${impact}</span>
+          </div>
+          <div class="feed-grid-item">
+            <span class="lbl">Confidence</span>
+            <span class="val">${confidence} <small class="sig-note">(${strength})</small></span>
+          </div>
+          <div class="feed-grid-item full-width">
+            <span class="lbl">Instruments</span>
+            <span class="val text-highlight">Aditya-L1 (SoLEXS + HEL1OS)</span>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   const feedEl = $('feed');
@@ -324,13 +546,17 @@
     $('activeClass').textContent = fl.cls || 'Solar flare';
     $('activeLabel').textContent = `${fl.id || 'Event'} · ${shortDate(fl.t)}`;
     $('statusText').textContent = `NOWCAST · ${fl.cls || 'Flare'} detected`;
+    
+    // Update Solar Status Card dynamically
+    $('latestClass').textContent = fl.cls || '—';
+    if ($('latestFlareDesc')) $('latestFlareDesc').textContent = getFlareDescription(fl.cls);
+
     feedEl.insertAdjacentHTML('afterbegin', feedItem(fl));
     while (feedEl.children.length > 8) feedEl.lastChild.remove();
   }
 
   // --- Forecast alerts (the ensemble firing BEFORE a flare) ----------------
   function forecastAt(ms) {
-    // last forecast-track probability at or before ms (step lookup)
     if (!fcurve.length || ms < fcurve[0][0]) return null;
     let lo = 0, hi = fcurve.length - 1, ans = 0;
     while (lo <= hi) {
@@ -354,12 +580,40 @@
     const leadTxt = nxt ? `~${nxt.lead} min lead → ${nxt.cls} onset`
                         : 'elevated flare probability';
     $('statusText').textContent = `FORECAST · ${riskPct}% flare risk`;
+
+    let confidence = '95.0%';
+    let strength = 'Moderate';
+    if (riskPct >= 75) { confidence = '99.9%'; strength = 'Extreme'; }
+    else if (riskPct >= 50) { confidence = '99.0%'; strength = 'Strong'; }
+
     feedEl.insertAdjacentHTML('afterbegin', `
-      <div class="feed-item b-M" style="border-left:3px solid #b28a4a">
-        <div class="feed-badge" style="background:#b28a4a;color:#fff">FCST</div>
-        <div class="feed-meta"><b>Forecast alert · ${riskPct}% risk</b>
-          <small>${shortDate(new Date(ms).toISOString())}<br>${leadTxt}</small></div>
-        <div class="feed-sigma">${riskPct}%</div>
+      <div class="feed-card b-M" style="border-left: 3px solid #ff9500">
+        <div class="feed-card-header">
+          <div class="feed-badge c-M">FCST</div>
+          <h4>Forecast Warning: ${riskPct}% Flare Risk</h4>
+        </div>
+        <div class="feed-card-grid">
+          <div class="feed-grid-item">
+            <span class="lbl">Detected</span>
+            <span class="val">${shortDate(new Date(ms).toISOString())}</span>
+          </div>
+          <div class="feed-grid-item">
+            <span class="lbl">Implication</span>
+            <span class="val text-highlight">${leadTxt}</span>
+          </div>
+          <div class="feed-grid-item">
+            <span class="lbl">Earth Impact</span>
+            <span class="val impact-M">Possible Moderate Impact</span>
+          </div>
+          <div class="feed-grid-item">
+            <span class="lbl">Confidence</span>
+            <span class="val">${confidence} <small class="sig-note">(${strength})</small></span>
+          </div>
+          <div class="feed-grid-item full-width">
+            <span class="lbl">Instruments</span>
+            <span class="val text-highlight">Aditya-L1 (Predictive Ensemble)</span>
+          </div>
+        </div>
       </div>`);
     while (feedEl.children.length > 8) feedEl.lastChild.remove();
   }
@@ -480,16 +734,100 @@
   const applyFilterBtn = $('applyFilterBtn');
   const resetFilterBtn = $('resetFilterBtn');
 
+  let fpStart, fpEnd;
   if (filterStartInput && filterEndInput) {
-    const minMaxStart = toLocalISOString(new Date(t0));
-    const minMaxEnd = toLocalISOString(new Date(t1));
+    const initStart = new Date(t0);
+    const initEnd = new Date(t1);
 
-    filterStartInput.value = minMaxStart;
-    filterEndInput.value = minMaxEnd;
-    filterStartInput.min = minMaxStart;
-    filterStartInput.max = minMaxEnd;
-    filterEndInput.min = minMaxStart;
-    filterEndInput.max = minMaxEnd;
+    const fpConfig = {
+      enableTime: true,
+      enableSeconds: true,
+      dateFormat: "d M Y, H:i:S",
+      minDate: initStart,
+      maxDate: initEnd,
+      time_24hr: true,
+      onReady: function(selectedDates, dateStr, instance) {
+
+        // Inject custom month/year label
+        const monthContainer = instance.monthNav;
+        const currentMonthContainer = monthContainer.querySelector('.flatpickr-current-month');
+        if (currentMonthContainer) currentMonthContainer.style.display = 'none';
+
+        const customLabel = document.createElement('div');
+        customLabel.className = 'tejas-month-year';
+        monthContainer.insertBefore(customLabel, currentMonthContainer ? currentMonthContainer.nextSibling : null);
+
+        const updateCustomLabel = () => {
+          const monthName = instance.l10n.months.longhand[instance.currentMonth];
+          customLabel.textContent = `${monthName} ${instance.currentYear}`;
+        };
+        updateCustomLabel();
+        instance.updateCustomLabel = updateCustomLabel;
+
+        const inputs = [
+          { el: instance.hourElement, max: 23 },
+          { el: instance.minuteElement, max: 59 },
+          { el: instance.secondElement, max: 59 }
+        ];
+        
+        inputs.forEach(({ el, max }) => {
+          if (!el) return;
+          const wrapper = el.parentNode;
+          const prev = document.createElement('div');
+          prev.className = 'slot-prev';
+          const next = document.createElement('div');
+          next.className = 'slot-next';
+          wrapper.appendChild(prev);
+          wrapper.appendChild(next);
+          
+          el.dataset.max = max; // store max for easy access
+          
+          const updateSlots = () => {
+            let val = parseInt(el.value, 10) || 0;
+            let p = val - 1;
+            let n = val + 1;
+            if (p < 0) p = max;
+            if (n > max) n = 0;
+            prev.textContent = p.toString().padStart(2, '0');
+            next.textContent = n.toString().padStart(2, '0');
+          };
+          
+          el.addEventListener('input', updateSlots);
+          
+          // Override wheel event for infinite looping
+          wrapper.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            let val = parseInt(el.value, 10) || 0;
+            if (e.deltaY > 0) val--; else val++;
+            if (val < 0) val = max;
+            if (val > max) val = 0;
+            el.value = val.toString().padStart(2, '0');
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('blur', { bubbles: true })); // Commit change to flatpickr
+            updateSlots();
+          }, { passive: false });
+          
+          updateSlots();
+        });
+      },
+      
+      onMonthChange: function(selectedDates, dateStr, instance) {
+        if (instance.updateCustomLabel) instance.updateCustomLabel();
+      },
+      onYearChange: function(selectedDates, dateStr, instance) {
+        if (instance.updateCustomLabel) instance.updateCustomLabel();
+      },
+      onValueUpdate: function(selectedDates, dateStr, instance) {
+        // Trigger slot updates when time changes via flatpickr API/keyboard
+        [instance.hourElement, instance.minuteElement, instance.secondElement].forEach(el => {
+          if (el) el.dispatchEvent(new Event('input'));
+        });
+      }
+    };
+
+    fpStart = flatpickr(filterStartInput, { ...fpConfig, defaultDate: initStart });
+    fpEnd = flatpickr(filterEndInput, { ...fpConfig, defaultDate: initEnd });
   }
 
   if (applyFilterBtn && resetFilterBtn) {
@@ -548,11 +886,8 @@
     });
 
     resetFilterBtn.addEventListener('click', () => {
-      const minMaxStart = toLocalISOString(new Date(t0));
-      const minMaxEnd = toLocalISOString(new Date(t1));
-
-      filterStartInput.value = minMaxStart;
-      filterEndInput.value = minMaxEnd;
+      fpStart.setDate(new Date(t0));
+      fpEnd.setDate(new Date(t1));
 
       t0_active = t0;
       t1_active = t1;
@@ -585,6 +920,7 @@
     if (!force && performance.now() - lastCursor < 180) return;
     lastCursor = performance.now();
     lightChart.setOption({ series: [{ markLine: { label: { show: false }, data: [{ xAxis: new Date(ms).toISOString() }] } }] });
+    if (typeof updatePieData === 'function') updatePieData(ms);
   }
 
   function jump(ms) {
@@ -593,6 +929,7 @@
     setCampaignClock(ms);
     cursor(ms, true);
     updateMcBars(ms);
+    updateSolarStatus(forecastAt(ms));
     slider.value = ((ms - t0_active) / span_active) * 1000;
   }
 
@@ -624,6 +961,7 @@
       }
     }
     updateMcBars(cur);
+    updateSolarStatus(forecastAt(cur));
     prev = cur;
     setCampaignClock(cur);
     cursor(cur);

@@ -6,7 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#d9d9d4" />
   <title>TEJAS · Solar Intelligence</title>
-  <link rel="stylesheet" href="css/style.css?v=1.8" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
+  <link rel="stylesheet" href="css/style.css?v=2.3" />
 </head>
 
 <body>
@@ -100,16 +101,32 @@
               <span class="coverage-note"><i></i><span id="coverageText">37 observing days</span></span>
             </div>
           </div>
-          <div class="hero-outlook">
-            <div class="outlook-top"><span>Latest catalogued event</span><span class="live-mark">Recorded</span></div>
-            <div class="outlook-reading">
-              <strong id="latestClass">—</strong>
-              <div><b id="latestEvent">Awaiting data</b><small id="latestTime">—</small></div>
+          <div class="hero-outlook solar-status-card">
+            <div class="outlook-top">
+              <span>Solar Activity Status</span>
+              <span class="status-badge badge-green" id="systemStatusBadge">System: Nominal</span>
+            </div>
+            <div class="status-grid">
+              <div class="status-grid-item">
+                <span class="status-label">Current Risk</span>
+                <span class="status-badge badge-green" id="riskLevelBadge">LOW</span>
+              </div>
+              <div class="status-grid-item">
+                <span class="status-label">Latest Flare</span>
+                <div class="status-val-row">
+                  <strong id="latestClass">—</strong>
+                  <span class="flare-desc-lbl" id="latestFlareDesc">No Flare</span>
+                </div>
+              </div>
+              <div class="status-grid-item">
+                <span class="status-label">Forecast (60m)</span>
+                <span class="status-value-bold" id="forecastProbVal">--%</span>
+              </div>
             </div>
             <div class="outlook-rule"></div>
             <div class="outlook-bottom">
-              <div><small>Model outlook</small><b id="outlookAuc">— AUC</b></div>
-              <div><small>Median warning</small><b id="outlookLead">— min</b></div>
+              <div><small class="tooltip-trigger" data-tooltip="Area Under the Receiver Operating Characteristic curve - a score of 1.0 is perfect prediction.">Model AUC</small><b id="outlookAuc">— AUC</b></div>
+              <div><small class="tooltip-trigger" data-tooltip="Median amount of time between forecast alert and actual flare onset.">Median warning</small><b id="outlookLead">— min</b></div>
             </div>
             <svg class="outlook-wave" viewBox="0 0 360 90" preserveAspectRatio="none" aria-hidden="true">
               <path
@@ -130,8 +147,13 @@
               <h3>X-ray activity timeline</h3>
             </div>
             <div class="card-actions">
-              <span class="data-chip"><i class="soft"></i>SoLEXS</span>
-              <span class="data-chip"><i class="hard"></i>HEL1OS</span>
+              <span class="data-chip"><i class="soft"></i><span class="tooltip-trigger" data-tooltip="Low-energy solar X-ray detector onboard Aditya-L1.">SoLEXS</span></span>
+              <span class="data-chip"><i class="hard"></i><span class="tooltip-trigger" data-tooltip="High-energy solar X-ray detector onboard Aditya-L1.">HEL1OS</span></span>
+              
+              <div class="view-toggle" style="display: flex; gap: 8px; margin-right: 12px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px;">
+                <button id="viewGraphBtn" class="data-chip" style="cursor: pointer; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: #fff;">Graph</button>
+                <button id="viewPieBtn" class="data-chip" style="cursor: pointer; border: 1px solid transparent; background: transparent; color: rgba(255,255,255,0.6);">Pie Chart</button>
+              </div>
               <button class="icon-btn expand-btn" data-expand="chartLight" aria-label="Expand X-ray activity chart"
                 title="Expand chart">
                 <svg class="expand-icon" viewBox="0 0 24 24">
@@ -150,14 +172,14 @@
             <div class="filter-inputs">
               <div class="filter-field">
                 <label for="filterStart">From</label>
-                <input type="datetime-local" id="filterStart" step="1" />
+                <input type="text" id="filterStart" placeholder="Select date..." />
               </div>
               <span class="filter-arrow" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
               </span>
               <div class="filter-field">
                 <label for="filterEnd">To</label>
-                <input type="datetime-local" id="filterEnd" step="1" />
+                <input type="text" id="filterEnd" placeholder="Select date..." />
               </div>
             </div>
             <div class="filter-actions">
@@ -172,12 +194,45 @@
             </div>
           </div>
 
-          <div class="chart chart-large" id="chartLight"></div>
-          <div class="timeline-control">
+          <div class="timeline-control" style="margin-top: 0; margin-bottom: 2px;">
             <button id="playBtn" class="replay-btn"><span class="play-symbol">▶</span><span class="play-label">Replay
                 campaign</span></button>
             <input type="range" id="timeline" min="0" max="1000" value="1000" aria-label="Campaign timeline" />
             <span class="timeline-date" id="tlDate">—</span>
+          </div>
+
+          <div class="chart chart-large" id="chartLight"></div>
+          <div class="chart chart-large" id="chartPie" style="display: none;"></div>
+          
+          <!-- Chart Reading Guide -->
+          <div class="chart-guide">
+            <h4 class="guide-title">Legends</h4>
+            <div class="guide-items">
+              <div class="guide-item">
+                <span class="guide-bullet bullet-spike"></span>
+                <span class="guide-text">Every spike represents solar activity</span>
+              </div>
+              <div class="guide-item">
+                <span class="guide-bullet bullet-height"></span>
+                <span class="guide-text">Larger spikes indicate stronger flares</span>
+              </div>
+              <div class="guide-item">
+                <span class="guide-bullet bullet-solexs"></span>
+                <span class="guide-text"><span class="tooltip-trigger" data-tooltip="Low-energy solar X-ray detector onboard Aditya-L1.">Blue = SoLEXS</span></span>
+              </div>
+              <div class="guide-item">
+                <span class="guide-bullet bullet-hel1os"></span>
+                <span class="guide-text"><span class="tooltip-trigger" data-tooltip="High-energy solar X-ray detector onboard Aditya-L1.">Green = HEL1OS</span></span>
+              </div>
+              <div class="guide-item">
+                <span class="guide-bullet bullet-goes"></span>
+                <span class="guide-text"><span class="tooltip-trigger" data-tooltip="Reference solar X-ray flux used worldwide for flare classification.">Yellow = GOES Flux</span></span>
+              </div>
+              <div class="guide-item">
+                <span class="guide-bullet bullet-forecast"></span>
+                <span class="guide-text"><span class="tooltip-trigger" data-tooltip="Probability of significant flare activity.">Red = TEJAS Forecast Risk</span></span>
+              </div>
+            </div>
           </div>
         </article>
 
@@ -200,7 +255,12 @@
             <div><span class="card-kicker">Event composition</span>
               <h3>Flares by GOES class</h3>
             </div>
-            <button class="icon-btn expand-btn" data-expand="chartDist" aria-label="Expand class distribution chart"
+            
+              <div class="view-toggle" style="display: flex; gap: 8px; margin-right: 12px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px;">
+                <button id="viewGraphBtn" class="data-chip" style="cursor: pointer; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: #fff;">Graph</button>
+                <button id="viewPieBtn" class="data-chip" style="cursor: pointer; border: 1px solid transparent; background: transparent; color: rgba(255,255,255,0.6);">Pie Chart</button>
+              </div>
+              <button class="icon-btn expand-btn" data-expand="chartDist" aria-label="Expand class distribution chart"
               title="Expand chart">
               <svg class="expand-icon" viewBox="0 0 24 24">
                 <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path>
@@ -217,7 +277,12 @@
             <div><span class="card-kicker">Instrument agreement</span>
               <h3>SoLEXS → GOES calibration</h3>
             </div>
-            <button class="icon-btn expand-btn" data-expand="chartCalib" aria-label="Expand calibration chart"
+            
+              <div class="view-toggle" style="display: flex; gap: 8px; margin-right: 12px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px;">
+                <button id="viewGraphBtn" class="data-chip" style="cursor: pointer; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: #fff;">Graph</button>
+                <button id="viewPieBtn" class="data-chip" style="cursor: pointer; border: 1px solid transparent; background: transparent; color: rgba(255,255,255,0.6);">Pie Chart</button>
+              </div>
+              <button class="icon-btn expand-btn" data-expand="chartCalib" aria-label="Expand calibration chart"
               title="Expand chart">
               <svg class="expand-icon" viewBox="0 0 24 24">
                 <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path>
@@ -235,7 +300,12 @@
             <div><span class="card-kicker">Time-aware validation</span>
               <h3>Forecast skill by horizon</h3>
             </div>
-            <button class="icon-btn expand-btn" data-expand="chartForecast" aria-label="Expand forecast chart"
+            
+              <div class="view-toggle" style="display: flex; gap: 8px; margin-right: 12px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: 8px;">
+                <button id="viewGraphBtn" class="data-chip" style="cursor: pointer; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: #fff;">Graph</button>
+                <button id="viewPieBtn" class="data-chip" style="cursor: pointer; border: 1px solid transparent; background: transparent; color: rgba(255,255,255,0.6);">Pie Chart</button>
+              </div>
+              <button class="icon-btn expand-btn" data-expand="chartForecast" aria-label="Expand forecast chart"
               title="Expand chart">
               <svg class="expand-icon" viewBox="0 0 24 24">
                 <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path>
@@ -316,8 +386,9 @@
   <div class="chart-backdrop" id="chartBackdrop" aria-hidden="true"></div>
 
   <script src="vendor/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="data/data.js"></script>
-  <script src="js/dashboard.js?v=1.8"></script>
+  <script src="js/dashboard.js?v=2.3"></script>
 </body>
 
 </html>
