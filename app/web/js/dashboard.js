@@ -959,6 +959,7 @@
       playing = false;
       playBtn.querySelector('.play-symbol').textContent = '▶';
       playBtn.querySelector('.play-label').textContent = 'Replay campaign';
+      if (window.setSolarReplayState) window.setSolarReplayState(false);
       jump(t0_active);
 
       // Update flares-by-class bar chart
@@ -986,6 +987,7 @@
       playing = false;
       playBtn.querySelector('.play-symbol').textContent = '▶';
       playBtn.querySelector('.play-label').textContent = 'Replay campaign';
+      if (window.setSolarReplayState) window.setSolarReplayState(false);
       jump(t1_active);
 
       // Restore flares-by-class bar chart to full data
@@ -1034,7 +1036,18 @@
     cur += dtMs;
     for (const fl of flares) {
       const ms = Date.parse(fl.t);
-      if (ms > prev && ms <= cur) announce(fl);
+      if (ms > prev && ms <= cur) {
+        announce(fl);
+        if (window.triggerSolarFlare) {
+          window.triggerSolarFlare(fl.cls, {
+            startTime: fl.t,
+            peakTime: fl.tPeak || fl.t,
+            duration: fl.durMin || 5.0,
+            solarRotation: '215.7°',
+            activeRegion: fl.ar || 'AR 13664'
+          });
+        }
+      }
     }
     if (fcThreshold != null) {
       const pr = forecastAt(cur);
@@ -1054,6 +1067,7 @@
       playBtn.querySelector('.play-symbol').textContent = '▶';
       playBtn.querySelector('.play-label').textContent = 'Replay campaign';
       $('statusText').textContent = 'Campaign replay complete';
+      if (window.setSolarReplayState) window.setSolarReplayState(false);
       return;
     }
     requestAnimationFrame(tick);
@@ -1065,6 +1079,7 @@
     playing = false;
     playBtn.querySelector('.play-symbol').textContent = '▶';
     playBtn.querySelector('.play-label').textContent = 'Replay campaign';
+    if (window.setSolarReplayState) window.setSolarReplayState(false);
     jump(t0_active + (Number(slider.value) / 1000) * span_active);
   });
   playBtn.addEventListener('click', () => {
@@ -1078,12 +1093,14 @@
       }
       playBtn.querySelector('.play-symbol').textContent = 'Ⅱ';
       playBtn.querySelector('.play-label').textContent = 'Pause replay';
+      if (window.setSolarReplayState) window.setSolarReplayState(true);
       $('statusText').textContent = 'Replaying campaign';
       lastTickTime = null;
       tick();
     } else {
       playBtn.querySelector('.play-symbol').textContent = '▶';
       playBtn.querySelector('.play-label').textContent = 'Replay campaign';
+      if (window.setSolarReplayState) window.setSolarReplayState(false);
       $('statusText').textContent = 'Monitoring nominally';
     }
   });

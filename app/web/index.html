@@ -8,6 +8,7 @@
   <title>TEJAS · Solar Intelligence</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css" />
   <link rel="stylesheet" href="css/style.css?v=2.3" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 
 <body>
@@ -236,6 +237,90 @@
           </div>
         </article>
 
+        <!-- 3D Solar View Widget -->
+        <article class="card dark-card solar-widget-card reveal" id="solarWidgetCard">
+          <div class="swc-header">
+            <div class="swc-header-left">
+              <span class="swc-label">3D SOLAR VIEW</span>
+              <span class="swc-subtitle">Real-time flare visualization</span>
+            </div>
+            <div class="swc-header-right">
+              <div class="swc-autorotate">
+                <span class="swc-toggle-label">Auto-rotate</span>
+                <label class="swc-toggle-switch">
+                  <input type="checkbox" id="autoRotateToggle" checked>
+                  <span class="swc-toggle-thumb"></span>
+                </label>
+              </div>
+              <button class="swc-expand-btn" id="solarExpandBtn" title="Fullscreen">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M1 5V1H5M9 1H13V5M13 9V13H9M5 13H1V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="swc-canvas-wrapper" id="solarCanvasWrapper">
+            <canvas id="solarCanvas"></canvas>
+            <div class="swc-flare-overlay" id="solarFlareOverlay"></div>
+            <div class="swc-zoom-badge" id="solarZoomBadge">1.0×</div>
+          </div>
+
+          <div class="swc-stats-row">
+            <div class="swc-stat">
+              <span class="swc-stat-label">Solar rotation</span>
+              <span class="swc-stat-value" id="solarRotationVal">215.7°</span>
+            </div>
+            <div class="swc-stat-divider"></div>
+            <div class="swc-stat" style="text-align:right">
+              <span class="swc-stat-label">Active region</span>
+              <span class="swc-stat-value" id="activeRegionVal">AR 13664</span>
+            </div>
+          </div>
+
+          <div class="swc-flare-panel" id="solarFlarePanel">
+            <div class="swc-quiet-state" id="solarQuietState">
+              QUIET SUN
+            </div>
+            <div class="swc-active-state" id="solarActiveState" style="display: none;">
+              <div class="swc-flare-col">
+                <span class="swc-flare-label">Detected flare</span>
+                <div class="swc-flare-val">
+                  <span class="swc-flare-class" id="solarFlareClass">C2.3</span>
+                  <span class="swc-flare-type" id="solarFlareType">Moderate</span>
+                </div>
+              </div>
+              <div class="swc-flare-col">
+                <span class="swc-flare-label">Start time</span>
+                <span class="swc-flare-val-text" id="solarFlareStart">--:--</span>
+              </div>
+              <div class="swc-flare-col">
+                <span class="swc-flare-label">Peak time</span>
+                <span class="swc-flare-val-text" id="solarFlarePeak">--:--</span>
+              </div>
+              <div class="swc-flare-col">
+                <span class="swc-flare-label">Duration</span>
+                <span class="swc-flare-val-text" id="solarFlareDuration">--</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="swc-intensity-row">
+            <div class="swc-intensity-bar">
+              <div class="swc-intensity-dot" id="solarIntensityDot"></div>
+            </div>
+            <div class="swc-intensity-labels">
+              <span>Low</span>
+              <span>Extreme</span>
+            </div>
+          </div>
+
+          <div class="swc-sync-row">
+            <span class="swc-sync-dot" id="solarSyncDot"></span>
+            <span class="swc-sync-text" id="solarSyncText">Replay paused</span>
+          </div>
+        </article>
+
         <article class="card alerts-card reveal">
           <div class="card-head">
             <div><span class="card-kicker">Event stream</span>
@@ -390,6 +475,7 @@
   <script src="vendor/echarts.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="data/data.js"></script>
+  <script src="js/solar-view.js"></script>
   <script src="js/dashboard.js?v=2.3"></script>
 </body>
 

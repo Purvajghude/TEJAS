@@ -2673,3 +2673,345 @@ span.flatpickr-weekday {
   transform: translateX(-50%) scale(1);
   transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s 0s;
 }
+
+/* ============================================
+   SOLAR WIDGET CARD
+   ============================================ */
+
+.solar-widget-card {
+  grid-column: span 4;
+  height: 560px;
+  background: #0f0f0f;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER */
+.swc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.swc-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swc-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+}
+
+.swc-subtitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.swc-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.swc-autorotate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.swc-toggle-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.swc-toggle-switch {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.swc-toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.swc-toggle-thumb {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  transition: background 0.2s;
+}
+
+.swc-toggle-thumb::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+}
+
+.swc-toggle-switch input:checked + .swc-toggle-thumb {
+  background: #d4a843;
+}
+
+.swc-toggle-switch input:checked + .swc-toggle-thumb::after {
+  transform: translateX(12px);
+}
+
+.swc-expand-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.5);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.swc-expand-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+/* CANVAS */
+.swc-canvas-wrapper {
+  flex: 1;
+  position: relative;
+  background: radial-gradient(ellipse at center, #1a0800 0%, #050200 60%, #000000 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#solarCanvas {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1;
+  cursor: grab;
+}
+
+/* OVERLAY */
+.swc-flare-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.8) 0%, rgba(212, 168, 67, 0.2) 40%, transparent 80%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.swc-flare-overlay.flash {
+  animation: coronaFlash 1.2s ease-out;
+}
+
+@keyframes coronaFlash {
+  0% { opacity: 0; }
+  15% { opacity: 0.25; }
+  100% { opacity: 0; }
+}
+
+.swc-zoom-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(212, 168, 67, 0.15);
+  border: 1px solid rgba(212, 168, 67, 0.3);
+  color: #d4a843;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 4px 8px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.swc-zoom-badge.visible {
+  opacity: 1;
+}
+
+/* STATS ROW */
+.swc-stats-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.swc-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swc-stat-label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.swc-stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+}
+
+.swc-stat-divider {
+  width: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* FLARE PANEL */
+.swc-flare-panel {
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+}
+
+.swc-quiet-state {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.1em;
+}
+
+.swc-active-state {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr;
+  gap: 12px;
+}
+
+.swc-flare-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swc-flare-label {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.swc-flare-val {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.swc-flare-class {
+  font-size: 16px;
+  font-weight: 700;
+  color: #d4a843;
+}
+
+.swc-flare-type {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.swc-flare-val-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+
+/* INTENSITY BAR */
+.swc-intensity-row {
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.swc-intensity-bar {
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(to right, #4bd964, #f5c227, #ff9500, #ff3b30);
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.swc-intensity-dot {
+  position: absolute;
+  top: 50%;
+  left: 5%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.swc-intensity-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* SYNC ROW */
+.swc-sync-row {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swc-sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transition: all 0.3s;
+}
+
+.swc-sync-dot.active {
+  background: #4bd964;
+  box-shadow: 0 0 6px rgba(75, 217, 100, 0.5);
+  animation: pulseSync 2s infinite;
+}
+
+@keyframes pulseSync {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.swc-sync-text {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
