@@ -1849,9 +1849,20 @@ html {
 }
 
 @keyframes cardLoadingFlicker {
-  0% { opacity: 1; filter: brightness(1); }
-  50% { opacity: 0.6; filter: brightness(0.96); }
-  100% { opacity: 1; filter: brightness(1); }
+  0% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    filter: brightness(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
 }
 
 .hero-copy {
@@ -2768,11 +2779,11 @@ span.flatpickr-weekday {
   transition: transform 0.2s;
 }
 
-.swc-toggle-switch input:checked + .swc-toggle-thumb {
+.swc-toggle-switch input:checked+.swc-toggle-thumb {
   background: #d4a843;
 }
 
-.swc-toggle-switch input:checked + .swc-toggle-thumb::after {
+.swc-toggle-switch input:checked+.swc-toggle-thumb::after {
   transform: translateX(12px);
 }
 
@@ -2818,7 +2829,7 @@ span.flatpickr-weekday {
 .swc-flare-overlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(255,255,255,0.8) 0%, rgba(212, 168, 67, 0.2) 40%, transparent 80%);
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.8) 0%, rgba(212, 168, 67, 0.2) 40%, transparent 80%);
   opacity: 0;
   pointer-events: none;
 }
@@ -2828,9 +2839,17 @@ span.flatpickr-weekday {
 }
 
 @keyframes coronaFlash {
-  0% { opacity: 0; }
-  15% { opacity: 0.25; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0;
+  }
+
+  15% {
+    opacity: 0.25;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
 
 .swc-zoom-badge {
@@ -2970,7 +2989,7 @@ span.flatpickr-weekday {
   height: 10px;
   background: white;
   border-radius: 50%;
-  box-shadow: 0 0 4px rgba(0,0,0,0.5);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
   transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -3006,9 +3025,17 @@ span.flatpickr-weekday {
 }
 
 @keyframes pulseSync {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 .swc-sync-text {
