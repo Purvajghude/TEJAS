@@ -18,7 +18,9 @@
 
   function resizeRenderer() {
     const w = canvas.parentElement.clientWidth;
-    renderer.setSize(w, w);
+    const h = canvas.parentElement.clientHeight || w;
+    const size = Math.min(w, h);
+    renderer.setSize(size, size);
     camera.aspect = 1.0;
     camera.updateProjectionMatrix();
   }
@@ -515,10 +517,10 @@
   canvas.addEventListener('touchcancel', onPointerUp);
 
   // --- ZOOM ---
-  let currentZoom = 5.0;
+  let currentZoom = 8.3333; // 5.0 / 8.3333 = ~0.6x zoom
   const MIN_ZOOM = 3.0;
-  const MAX_ZOOM = 8.0;
-  let targetZoom = 5.0;
+  const MAX_ZOOM = 12.0;
+  let targetZoom = 8.3333;
   let zoomBadgeTimeout = null;
   const zoomBadge = document.getElementById('solarZoomBadge');
 
@@ -564,7 +566,7 @@
   }, { passive: false });
 
   canvas.addEventListener('dblclick', function(e) {
-    targetZoom = 5.0;
+    targetZoom = 8.3333;
     showZoomBadge();
   });
   
@@ -576,6 +578,34 @@
       sessionStorage.setItem('solarZoomTooltipShown', '1');
       canvas.removeEventListener('mouseenter', showTooltip);
     }, { once: true });
+  }
+
+  // --- FULLSCREEN ---
+  const expandBtn = document.getElementById('solarExpandBtn');
+  const widgetCard = document.getElementById('solarWidgetCard');
+  if (expandBtn && widgetCard) {
+    expandBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        widgetCard.requestFullscreen().catch(err => {
+          console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement === widgetCard) {
+        widgetCard.classList.add('is-fullscreen');
+        canvas.style.setProperty('width', 'auto', 'important');
+        canvas.style.setProperty('height', '100%', 'important');
+      } else {
+        widgetCard.classList.remove('is-fullscreen');
+        canvas.style.setProperty('width', '100%', 'important');
+        canvas.style.setProperty('height', 'auto', 'important');
+      }
+      setTimeout(resizeRenderer, 100);
+    });
   }
 
   // --- ANIMATION LOOP ---
