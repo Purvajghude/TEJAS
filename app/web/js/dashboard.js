@@ -816,90 +816,200 @@
     const initStart = new Date(t0);
     const initEnd = new Date(t1);
 
+    // Inject layout styles for custom flatpickr time picker
+    if (!document.getElementById('tejas-fp-custom-style')) {
+      const style = document.createElement('style');
+      style.id = 'tejas-fp-custom-style';
+      style.textContent = `
+        .flatpickr-calendar.tejas-custom-layout {
+          width: auto !important;
+        }
+        .tejas-picker-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 14px 16px;
+          border-top: 1px solid rgba(255,255,255,0.08);
+          background: rgba(0,0,0,0.15);
+        }
+        .tejas-today-btn {
+          color: rgba(255,255,255,0.3);
+          font-size: 0.75rem;
+          font-weight: 700;
+          cursor: pointer;
+          letter-spacing: 0.05em;
+          transition: color 0.2s;
+          text-transform: uppercase;
+        }
+        .tejas-today-btn:hover {
+          color: #b28a4a;
+        }
+        .tejas-selected-text {
+          color: #b28a4a;
+          font-size: 0.8rem;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+        /* Style the static month year */
+        .flatpickr-current-month {
+          font-weight: bold;
+          font-size: 0.95rem;
+          letter-spacing: 0.05em;
+        }
+        .flatpickr-months {
+          padding-top: 10px;
+        }
+        /* Uppercase the date input to match design without breaking parse */
+        #filterStart, #filterEnd, .flatpickr-input {
+          text-transform: uppercase !important;
+        }
+        /* Native time picker styling tweaks to match theme and fix alignment */
+        .flatpickr-time {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          height: 50px !important;
+          max-height: 50px !important;
+          overflow: hidden !important;
+        }
+        .flatpickr-time .numInputWrapper {
+          height: 100% !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+        .flatpickr-time input.numInput, .flatpickr-time .flatpickr-am-pm {
+          height: 100% !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          color: rgba(255,255,255,0.85) !important;
+        }
+        .flatpickr-time-separator {
+          height: 100% !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          margin: 0 4px !important;
+        }
+        .flatpickr-time input:hover, .flatpickr-time .flatpickr-am-pm:hover, .flatpickr-time input:focus, .flatpickr-time .flatpickr-am-pm:focus {
+          background: rgba(255,255,255,0.05) !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     const fpConfig = {
       enableTime: true,
-      enableSeconds: true,
-      dateFormat: "d M Y, H:i:S",
+      enableSeconds: false,
+      dateFormat: "F j, Y h:i K", // "September 9, 2015 09:00 PM"
       minDate: initStart,
       maxDate: initEnd,
-      time_24hr: true,
+      time_24hr: false,
+      monthSelectorType: "static", // Matches Image 1 header
+      locale: {
+        firstDayOfWeek: 1, // Start on Monday
+        weekdays: {
+          shorthand: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], // Matches Image 1 single letter days
+          longhand: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+        }
+      },
       onReady: function (selectedDates, dateStr, instance) {
 
-        // Inject custom month/year label
-        const monthContainer = instance.monthNav;
-        const currentMonthContainer = monthContainer.querySelector('.flatpickr-current-month');
-        if (currentMonthContainer) currentMonthContainer.style.display = 'none';
+        const calendarContainer = instance.calendarContainer;
+        calendarContainer.classList.add('tejas-custom-layout');
 
-        const customLabel = document.createElement('div');
-        customLabel.className = 'tejas-month-year';
-        monthContainer.insertBefore(customLabel, currentMonthContainer ? currentMonthContainer.nextSibling : null);
-
-        const updateCustomLabel = () => {
-          const monthName = instance.l10n.months.longhand[instance.currentMonth];
-          customLabel.textContent = `${monthName} ${instance.currentYear}`;
-        };
-        updateCustomLabel();
-        instance.updateCustomLabel = updateCustomLabel;
-
-        const inputs = [
-          { el: instance.hourElement, max: 23 },
-          { el: instance.minuteElement, max: 59 },
-          { el: instance.secondElement, max: 59 }
-        ];
-
-        inputs.forEach(({ el, max }) => {
-          if (!el) return;
-          const wrapper = el.parentNode;
-          const prev = document.createElement('div');
-          prev.className = 'slot-prev';
-          const next = document.createElement('div');
-          next.className = 'slot-next';
-          wrapper.appendChild(prev);
-          wrapper.appendChild(next);
-
-          el.dataset.max = max; // store max for easy access
-
-          const updateSlots = () => {
-            let val = parseInt(el.value, 10) || 0;
-            let p = val - 1;
-            let n = val + 1;
-            if (p < 0) p = max;
-            if (n > max) n = 0;
-            prev.textContent = p.toString().padStart(2, '0');
-            next.textContent = n.toString().padStart(2, '0');
-          };
-
-          el.addEventListener('input', updateSlots);
-
-          // Override wheel event for infinite looping
-          wrapper.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            let val = parseInt(el.value, 10) || 0;
-            if (e.deltaY > 0) val--; else val++;
-            if (val < 0) val = max;
-            if (val > max) val = 0;
-            el.value = val.toString().padStart(2, '0');
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('blur', { bubbles: true })); // Commit change to flatpickr
-            updateSlots();
-          }, { passive: false });
-
-          updateSlots();
+        // Footer
+        const footer = document.createElement('div');
+        footer.className = 'tejas-picker-footer';
+        
+        const todayBtn = document.createElement('div');
+        todayBtn.className = 'tejas-today-btn';
+        todayBtn.textContent = 'TODAY';
+        todayBtn.addEventListener('click', () => {
+          instance.setDate(new Date(), true);
         });
-      },
+        
+        const selectedText = document.createElement('div');
+        selectedText.className = 'tejas-selected-text';
+        
+        footer.appendChild(todayBtn);
+        footer.appendChild(selectedText);
+        calendarContainer.appendChild(footer);
 
-      onMonthChange: function (selectedDates, dateStr, instance) {
-        if (instance.updateCustomLabel) instance.updateCustomLabel();
+        // Update UI Function
+        const updateUI = () => {
+          if (!instance.selectedDates.length) return;
+          const d = instance.selectedDates[0];
+          
+          // Update footer text
+          const months = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+          const month = months[d.getMonth()];
+          const day = d.getDate();
+          const year = d.getFullYear();
+          const h = d.getHours();
+          const m = d.getMinutes();
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          const h12 = h % 12 === 0 ? 12 : h % 12;
+          const mPad = m.toString().padStart(2, '0');
+          selectedText.textContent = `${month} ${day}, ${year} ${h12}:${mPad} ${ampm}`;
+        };
+
+        instance.updateUI = updateUI;
+        updateUI();
+
+        // Bind updateUI to native time inputs changing
+        const timeInputs = calendarContainer.querySelectorAll('.numInput, .flatpickr-am-pm');
+        timeInputs.forEach(input => {
+           input.addEventListener('input', updateUI);
+           input.addEventListener('click', updateUI);
+           input.addEventListener('keyup', updateUI);
+        });
+
+        // Custom robust wheel listener to allow scrolling on hover WITHOUT requiring click/focus
+        const timeContainer = calendarContainer.querySelector('.flatpickr-time');
+        if (timeContainer) {
+          timeContainer.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            e.stopPropagation(); // Stop native flatpickr wheel handling
+
+            if (!instance.selectedDates.length) return;
+            
+            const hourInput = e.target.closest('.numInputWrapper') ? e.target.closest('.numInputWrapper').querySelector('.flatpickr-hour') : null;
+            const minuteInput = e.target.closest('.numInputWrapper') ? e.target.closest('.numInputWrapper').querySelector('.flatpickr-minute') : null;
+            const ampmToggle = e.target.closest('.flatpickr-am-pm');
+            
+            const d = new Date(instance.selectedDates[0]);
+            const delta = e.deltaY < 0 ? 1 : -1; // Scroll up = increase, scroll down = decrease
+            
+            if (hourInput) {
+              let newHour = d.getHours() + delta;
+              if (newHour >= 24) newHour = 0;
+              if (newHour < 0) newHour = 23;
+              d.setHours(newHour);
+            } else if (minuteInput) {
+              const step = 5; // Default increment
+              let newMin = d.getMinutes() + (delta * step);
+              if (newMin >= 60) newMin = 0;
+              if (newMin < 0) newMin = 60 - step;
+              d.setMinutes(newMin);
+            } else if (ampmToggle) {
+              d.setHours((d.getHours() + 12) % 24);
+            } else {
+              return; // Not hovering over an interactable target
+            }
+            
+            instance.setDate(d, true);
+          }, { passive: false, capture: true });
+        }
       },
-      onYearChange: function (selectedDates, dateStr, instance) {
-        if (instance.updateCustomLabel) instance.updateCustomLabel();
+      onChange: function (selectedDates, dateStr, instance) {
+        if (instance.updateUI) instance.updateUI();
       },
       onValueUpdate: function (selectedDates, dateStr, instance) {
-        // Trigger slot updates when time changes via flatpickr API/keyboard
-        [instance.hourElement, instance.minuteElement, instance.secondElement].forEach(el => {
-          if (el) el.dispatchEvent(new Event('input'));
-        });
+        if (instance.updateUI) instance.updateUI();
       }
     };
 
