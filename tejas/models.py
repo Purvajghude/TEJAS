@@ -99,6 +99,34 @@ def score(y_true: np.ndarray, prob: np.ndarray, thr: float) -> dict:
     }
 
 
+def auc_ci(y_true: np.ndarray, prob: np.ndarray,
+           n_boot: int = 1000, ci_level: float = 0.95,
+           rng: np.random.Generator | None = None) -> tuple[float, float]:
+    """Bootstrap 95 % CI on ROC-AUC.  Returns (lower, upper).
+
+    Essential for small positive classes (e.g. X+ with n_pos ≈ 14 events):
+    the point-estimate AUC has a CI of ±0.15 or wider, so reporting the
+    interval is necessary for honest uncertainty quantification.
+    """
+    rng = rng or np.random.default_rng(42)
+    n = len(y_true)
+    boot = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        yb, pb = y_true[idx], prob[idx]
+        if len(np.unique(yb)) < 2:
+            continue
+        try:
+            boot.append(roc_auc_score(yb, pb))
+        except Exception:
+            pass
+    if not boot:
+        return (float("nan"), float("nan"))
+    alpha = (1.0 - ci_level) / 2
+    return (round(float(np.percentile(boot, 100 * alpha)), 3),
+            round(float(np.percentile(boot, 100 * (1 - alpha))), 3))
+
+
 def fit_eval(name: str, train: pd.DataFrame, test: pd.DataFrame,
              features: list[str], calibrate: bool = True):
     """Fit ``name`` on train (time-aware isotonic calibration), score on test."""

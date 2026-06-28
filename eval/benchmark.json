@@ -1,0 +1,78 @@
+{
+  "horizon_min": 30,
+  "test_n": 223102,
+  "test_n_pos_M": 1717,
+  "base_rate_M": 0.0077,
+  "catalog_available": true,
+  "baselines": [
+    {
+      "label": "TEJAS multiclass M+ (LightGBM, 30 min)",
+      "tss": 0.435,
+      "auc": 0.797,
+      "brier": 0.0074,
+      "n_pos": 1717
+    },
+    {
+      "label": "TEJAS ensemble M+ (TCN+LGBM, 30 min)",
+      "tss": 0.541,
+      "auc": 0.847,
+      "brier": 0.0062,
+      "n_pos": null,
+      "note": "From ensemble_metrics.json \u2014 TCN+LightGBM stacked meta-learner"
+    },
+    {
+      "label": "Persistence (30-min, same test set)",
+      "tss": 0.121,
+      "auc": 0.561,
+      "brier": 0.0151,
+      "n_pos": 1717
+    },
+    {
+      "label": "Climatological (base-rate)",
+      "tss": 0.0,
+      "auc": 0.5,
+      "brier": 0.0076,
+      "n_pos": 1717,
+      "note": "TSS=0 by construction; non-trivial AUC from base-rate averaging"
+    }
+  ],
+  "literature": [
+    {
+      "system": "NOAA SWPC operational",
+      "reference": "Crown (2012), Space Weather 10",
+      "horizon": "24 h",
+      "inputs": "Human+magnetogram",
+      "tss": 0.39,
+      "auc": null,
+      "note": "Evaluated on 2000-2010 GOES events; operational expert forecast"
+    },
+    {
+      "system": "Bobra & Couvidat SVM",
+      "reference": "Bobra & Couvidat (2015), ApJ 798",
+      "horizon": "24 h",
+      "inputs": "SDO/HMI SHARP",
+      "tss": 0.769,
+      "auc": null,
+      "note": "SVM on SHARP vector magnetogram parameters; M+X class \u226524 h"
+    },
+    {
+      "system": "DeFN (deep CNN)",
+      "reference": "Nishizuka et al. (2018), ApJ 858",
+      "horizon": "24 h",
+      "inputs": "SDO/HMI image + SHARP",
+      "tss": 0.8,
+      "auc": null,
+      "note": "Deep Flare Net; best M+ result in original paper"
+    },
+    {
+      "system": "FLARECAST ensemble (best)",
+      "reference": "Leka et al. (2019), ApJS 243",
+      "horizon": "24 h",
+      "inputs": "SHARP features",
+      "tss": 0.55,
+      "auc": null,
+      "note": "Best single method in 7-algorithm comparison; M+ class"
+    }
+  ],
+  "literature_caveat": "All literature entries use 24-hour forecast horizons and SDO/HMI magnetogram inputs. TEJAS uses 30-minute horizons and real-time Aditya-L1 X-ray data. These are DIFFERENT TASKS \u2014 not directly comparable. The table is provided for calibration context only."
+}

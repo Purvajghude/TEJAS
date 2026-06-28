@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SOLAR INTELLIGENCE · REAL TIME SIMULATION</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&display=swap');
+
+    :root {
+      --bg-color: #030303;
+      --panel-bg: rgba(9, 9, 9, 0.4);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --text-main: #f0f0f0;
+      --text-dim: #999999;
+      --text-highlight: #4a90e2;
+      --live-green: #2ecc71;
+      --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: inherit;
+    }
+
+    /* Top Header */
+    .header {
+      height: 36px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 16px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border-color);
+      position: relative;
+      z-index: 2;
+      background: var(--bg-color);
+    }
+
+    .header-left {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .header-right {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-family: var(--font-mono);
+    }
+
+    .live-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background-color: var(--live-green);
+      border-radius: 50%;
+      margin-right: 6px;
+      box-shadow: 0 0 6px var(--live-green);
+    }
+
+    .live-text {
+      color: var(--live-green);
+      font-weight: bold;
+    }
+
+    /* Main Grid */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr 1.25fr;
+      gap: 8px;
+      padding: 8px;
+      height: calc(100vh - 36px);
+      position: relative;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* Panels */
+    .panel {
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      pointer-events: auto;
+    }
+
+    .panel-content {
+      position: relative;
+      z-index: 1;
+      padding: 16px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .panel-number {
+      font-size: 20px;
+      font-weight: 300;
+      color: #fff;
+    }
+
+    .panel-title {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-title strong {
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .panel-title span {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    .panel-footer {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    /* Metric Widgets */
+    .widget {
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(4px);
+      border-radius: 4px;
+      padding: 12px;
+      position: absolute;
+      pointer-events: auto;
+    }
+
+    .widget-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 4px;
+    }
+
+    .widget-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      margin-bottom: 6px;
+    }
+
+    .widget-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .widget-label {
+      color: var(--text-dim);
+    }
+
+    .widget-val {
+      color: #fff;
+    }
+
+    /* Specific Panel Placements */
+    .panel-3 .widget {
+      top: 50%;
+      right: 16px;
+      transform: translateY(-50%);
+      width: 160px;
+    }
+
+    .panel-4 .widget {
+      bottom: 16px;
+      right: 16px;
+      width: 170px;
+    }
+
+    .panel-5 .widget {
+      bottom: 16px;
+      right: 16px;
+      width: 150px;
+    }
+
+    .panel-6 .widget {
+      bottom: 16px;
+      right: 16px;
+      width: 150px;
+    }
+
+    .panel-7 .widget {
+      bottom: 60px;
+      left: 16px;
+      width: 160px;
+    }
+
+    /* Above timeline */
+
+    /* Panel 7 specific spans */
+    .panel-7 {
+      grid-column: 1 / 3;
+      grid-row: 3 / 4;
+    }
+
+    /* Timeline */
+    .timeline-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 50px;
+      background: rgba(0, 0, 0, 0.5);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      pointer-events: auto;
+    }
+
+    .timeline-track {
+      width: 100%;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.2);
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .tl-point {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      transform: translate(-50%, 0);
+      top: -2px;
+    }
+
+    .tl-point.orange {
+      background: #f39c12;
+      box-shadow: 0 0 8px #f39c12;
+    }
+
+    .tl-point.purple {
+      background: #9b59b6;
+      box-shadow: 0 0 8px #9b59b6;
+    }
+
+    .tl-point.green {
+      background: #2ecc71;
+      box-shadow: 0 0 8px #2ecc71;
+    }
+
+    .tl-label {
+      position: absolute;
+      top: -20px;
+      transform: translateX(-50%);
+      font-size: 9px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    .tl-time {
+      position: absolute;
+      top: 10px;
+      transform: translateX(-50%);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      grid-column: 3 / 4;
+      grid-row: 3 / 4;
+      background-color: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      pointer-events: auto;
+      backdrop-filter: blur(8px);
+    }
+
+    /* Controls Section */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    .eye-icon {
+      width: 14px;
+      height: 14px;
+      opacity: 0.5;
+      cursor: pointer;
+    }
+
+    .eye-icon:hover {
+      opacity: 1.0;
+    }
+
+    .eye-icon.active {
+      opacity: 1.0;
+      color: #fff;
+    }
+
+    .eye-icon svg {
+      width: 100%;
+      height: 100%;
+      fill: currentColor;
+    }
+
+    /* Time Controls */
+    .time-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 16px;
+    }
+
+    .transport-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .transport-btn {
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      opacity: 0.7;
+    }
+
+    .transport-btn:hover {
+      opacity: 1;
+    }
+
+    .transport-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: currentColor;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+    }
+
+    .speed-slider {
+      flex: 1;
+      accent-color: #fff;
+    }
+
+    /* Event Summary */
+    .summary-box {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 16px;
+    }
+
+    .summary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge-ongoing {
+      background: rgba(46, 204, 113, 0.1);
+      color: var(--live-green);
+      border: 1px solid rgba(46, 204, 113, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    .flare-class {
+      font-size: 24px;
+      font-weight: 500;
+      color: #f39c12;
+    }
+
+    .flare-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+
+    .stat-val {
+      font-family: var(--font-mono);
+      color: #fff;
+    }
+
+    /* Forecast & System */
+    .sys-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    .sys-label {
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sys-check {
+      width: 8px;
+      height: 8px;
+      background: var(--live-green);
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .sys-status {
+      color: var(--live-green);
+      font-family: var(--font-mono);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Single Master Stage -->
+  <canvas id="master-stage"
+    style="position: fixed; inset: 0; z-index: 0; pointer-events: none; width: 100vw; height: 100vh; position: fixed; left: 0; top: 0;"></canvas>
+
+  <!-- Top Header -->
+  <header class="header">
+    <div class="header-left">
+      <span style="color: #fff; font-weight: 500;">SOLAR INTELLIGENCE</span>
+      <span>·</span>
+      <span>REAL TIME SIMULATION</span>
+    </div>
+    <div class="header-right">
+      <span>DATA: ADITYA-L1 (SoLEXS + HEL1OS)</span>
+      <span class="live-text"><i class="live-dot"></i>LIVE</span>
+      <span id="utc-clock">18:20:45 UTC</span>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <main class="dashboard-grid">
+
+    <!-- Panel 1: Quiet Sun -->
+    <div class="panel" id="panel-1">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">1</div>
+          <div class="panel-title">
+            <strong>QUIET SUN</strong>
+            <span>Before the eruption</span>
+          </div>
+        </div>
+        <div class="panel-footer">2026-06-15 12:45 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 2: Magnetic Build Up -->
+    <div class="panel" id="panel-2">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">2</div>
+          <div class="panel-title">
+            <strong>MAGNETIC BUILD UP</strong>
+            <span>Active region intensifies</span>
+          </div>
+        </div>
+        <div class="panel-footer">2026-06-15 13:12 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 3: Solar Flare -->
+    <div class="panel panel-3" id="panel-3">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">3</div>
+          <div class="panel-title">
+            <strong>SOLAR FLARE</strong>
+            <span>Energy release</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">FLARE DETAILS</div>
+          <div class="widget-row"><span class="widget-label">Class</span><span class="widget-val">M2.3</span></div>
+          <div class="widget-row"><span class="widget-label">Peak Time</span><span class="widget-val">13:21 UTC</span>
+          </div>
+          <div class="widget-row"><span class="widget-label">Duration</span><span class="widget-val">4.3 min</span>
+          </div>
+          <div class="widget-row"><span class="widget-label">Location</span><span class="widget-val">AR 13664</span>
+          </div>
+        </div>
+        <div class="panel-footer">2026-06-15 13:21 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 4: CME Launch -->
+    <div class="panel panel-4" id="panel-4">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">4</div>
+          <div class="panel-title">
+            <strong>CME LAUNCH</strong>
+            <span>Mass ejection from corona</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">CME PARAMETERS</div>
+          <div class="widget-row"><span class="widget-label">Speed</span><span class="widget-val">1857 km/s</span></div>
+          <div class="widget-row"><span class="widget-label">Direction</span><span class="widget-val">18° W of
+              Earth</span></div>
+          <div class="widget-row"><span class="widget-label">Width</span><span class="widget-val">62°</span></div>
+          <div class="widget-row"><span class="widget-label">Density</span><span class="widget-val">8.7 p/cc</span>
+          </div>
+        </div>
+        <div class="panel-footer">2026-06-15 13:24 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 5: CME Propagation -->
+    <div class="panel panel-5" id="panel-5">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">5</div>
+          <div class="panel-title">
+            <strong>CME PROPAGATION</strong>
+            <span>Traveling through interplanetary space</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">ESTIMATED ARRIVAL</div>
+          <div class="widget-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+            <span class="widget-label">Time</span>
+            <span class="widget-val">16 Jun 06:45 UTC</span>
+            <span class="widget-label" style="font-size: 9px;">(~17h 15m)</span>
+          </div>
+          <div class="widget-row" style="margin-top: 8px;">
+            <span class="widget-label">Confidence</span>
+            <span class="widget-val">89%</span>
+          </div>
+        </div>
+        <div class="panel-footer">2026-06-15 13:30 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 6: Magnetospheric Impact -->
+    <div class="panel panel-6" id="panel-6">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">6</div>
+          <div class="panel-title">
+            <strong>MAGNETOSPHERIC IMPACT</strong>
+            <span>Interaction with Earth's magnetic field</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">IMPACT METRICS</div>
+          <div class="widget-row"><span class="widget-label">Kp Index</span><span class="widget-val">7.1</span></div>
+          <div class="widget-row"><span class="widget-label">Dst Index</span><span class="widget-val">-135 nT</span>
+          </div>
+          <div class="widget-row"><span class="widget-label">Bz</span><span class="widget-val">-18.6 nT</span></div>
+          <div class="widget-row"><span class="widget-label">Vsw</span><span class="widget-val">782 km/s</span></div>
+        </div>
+        <div class="panel-footer">2026-06-16 06:45 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 7: Auroral Response -->
+    <div class="panel panel-7" id="panel-7">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">7</div>
+          <div class="panel-title">
+            <strong>AURORAL RESPONSE</strong>
+            <span>Energy deposition in polar regions</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">AURORA VIEW</div>
+          <div class="widget-row"><span class="widget-label">Hemisphere</span><span class="widget-val">North</span>
+          </div>
+          <div class="widget-row"><span class="widget-label">Power</span><span class="widget-val">High</span></div>
+          <div class="widget-row"><span class="widget-label">Oval Radius</span><span class="widget-val">18.7°</span>
+          </div>
+          <div class="widget-row"><span class="widget-label">Brightness</span><span class="widget-val">78%</span></div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="timeline-container">
+          <span
+            style="font-size: 9px; color: var(--text-dim); text-transform: uppercase; margin-right: 16px;">TIMELINE</span>
+          <div class="timeline-track">
+            <!-- Data Points -->
+            <div class="tl-point orange" style="left: 10%;">
+              <div class="tl-label">QUIET SUN</div>
+            </div>
+            <div class="tl-point orange" style="left: 25%;">
+              <div class="tl-label">FLARE</div>
+            </div>
+            <div class="tl-point orange" style="left: 35%;">
+              <div class="tl-label">CME LAUNCH</div>
+            </div>
+
+            <div class="tl-point purple" style="left: 65%;">
+              <div class="tl-label">IMPACT</div>
+            </div>
+            <div class="tl-point green" style="left: 78%;">
+              <div class="tl-label">AURORA</div>
+            </div>
+
+            <!-- Time Markers -->
+            <div class="tl-time" style="left: 0%;">12:00</div>
+            <div class="tl-time" style="left: 20%;">13:00</div>
+            <div class="tl-time" style="left: 40%;">14:00</div>
+            <div class="tl-time" style="left: 60%;">15:00</div>
+            <div class="tl-time" style="left: 80%;">16:00</div>
+            <div class="tl-time" style="left: 100%;">17:00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+
+      <!-- 3D View Controls -->
+      <div class="control-group" style="margin-bottom: 8px;">
+        <div class="control-title" style="margin-bottom: 4px;">3D VIEW CONTROLS</div>
+
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Sun</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24">
+              <path
+                d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+            </svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Earth</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24">
+              <path
+                d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+            </svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> CME Front</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24">
+              <path
+                d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+            </svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Magnetic
+            Field</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24">
+              <path
+                d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+            </svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Solar Wind</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24">
+              <path
+                d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+            </svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Aurora</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24">
+              <path
+                d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+            </svg></span>
+        </div>
+      </div>
+
+      <!-- Time Controls -->
+      <div class="time-controls">
+        <div class="control-title">TIME CONTROLS</div>
+        <div class="transport-buttons">
+          <button class="transport-btn"><svg viewBox="0 0 24 24">
+              <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+            </svg></button>
+          <button class="transport-btn"><svg viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" />
+            </svg></button>
+          <button class="transport-btn"><svg viewBox="0 0 24 24">
+              <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+            </svg></button>
+        </div>
+        <div class="slider-row">
+          <span>Speed</span>
+          <input type="range" class="speed-slider" min="0" max="2" value="1" step="0.1">
+          <span>1.0x</span>
+        </div>
+      </div>
+
+      <!-- Event Summary -->
+      <div class="summary-box">
+        <div class="summary-header">
+          <div class="control-title">EVENT SUMMARY</div>
+          <div class="badge-ongoing">ONGOING</div>
+        </div>
+        <div>
+          <span class="flare-class">M2.3</span>
+          <span class="flare-desc">Moderate Flare</span>
+        </div>
+        <div class="stat-row"><span class="widget-label">Event ID</span><span class="stat-val">SLX-6583</span></div>
+        <div class="stat-row"><span class="widget-label">Start Time</span><span class="stat-val">2026-06-15 13:21
+            UTC</span></div>
+        <div class="stat-row"><span class="widget-label">Max Time</span><span class="stat-val">2026-06-15 13:22
+            UTC</span></div>
+        <div class="stat-row"><span class="widget-label">Duration</span><span class="stat-val">4.3 min</span></div>
+      </div>
+
+      <!-- Forecast Status -->
+      <div class="summary-box">
+        <div class="summary-header">
+          <div class="control-title">FORECAST STATUS</div>
+          <span style="font-size: 9px; color: var(--text-dim);">Updated 2 min ago</span>
+        </div>
+        <div class="stat-row"><span class="widget-label">Arrival</span><span class="stat-val">16 Jun 06:45 UTC</span>
+        </div>
+        <div class="stat-row"><span class="widget-label">Probability</span><span class="stat-val">89%</span></div>
+        <div class="stat-row"><span class="widget-label">Impact</span><span class="stat-val">Strong</span></div>
+        <div class="stat-row"><span class="widget-label">Range</span><span class="stat-val">Kp 6 - Kp 8</span></div>
+      </div>
+
+      <!-- System Health -->
+      <div class="control-group">
+        <div class="control-title" style="margin-bottom: 4px;">SYSTEM HEALTH</div>
+        <div class="sys-row">
+          <span class="sys-label"><i class="sys-check"></i> Aditya-L1 Link</span>
+          <span class="sys-status">Nominal</span>
+        </div>
+        <div class="sys-row">
+          <span class="sys-label"><i class="sys-check"></i> SoLEXS</span>
+          <span class="sys-status">Nominal</span>
+        </div>
+        <div class="sys-row">
+          <span class="sys-label"><i class="sys-check"></i> HEL1OS</span>
+          <span class="sys-status">Nominal</span>
+        </div>
+        <div class="sys-row">
+          <span class="sys-label"><i class="sys-check"></i> Processing</span>
+          <span class="sys-status">Nominal</span>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <script>
+    // Live clock update
+    setInterval(() => {
+      const d = new Date();
+      const h = String(d.getUTCHours()).padStart(2, '0');
+      const m = String(d.getUTCMinutes()).padStart(2, '0');
+      const s = String(d.getUTCSeconds()).padStart(2, '0');
+      document.getElementById('utc-clock').textContent = `${h}:${m}:${s} UTC`;
+    }, 1000);
+  </script>
+
+  <!-- SCISSOR PIPELINE IMPLEMENTATION -->
+  <script>
+    const canvas = document.getElementById('master-stage');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat,
+      stencilBuffer: false
+    });
+    const composer = new THREE.EffectComposer(renderer, renderTarget);
+
+    // We intentionally DO NOT add a RenderPass because we are manually rendering multiple scenes into the readBuffer
+    const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.35, 0.60, 0.42);
+    composer.addPass(bloomPass);
+    const copyPass = new THREE.ShaderPass(THREE.CopyShader);
+    composer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setScissorTest(true);
+    renderer.autoClear = false;
+
+
+    composer.addPass(copyPass);
+
+    const clock = new THREE.Clock();
+
+    const SUN_RADIUS = 1.0;
+    const SUN_POS_X = 0.0;
+
+    // Globals
+    const flareState = {
+      pos: new THREE.Vector3(0.6, 0.35, 0.72).normalize()
+    };
+
+    const NOISE = `
+    vec3 mod289(vec3 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 mod289(vec4 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314*r;}
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+      vec3 i  = floor(v + dot(v, C.yyy));
+      vec3 x0 = v - i + dot(i, C.xxx);
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g.xyz, l.zxy);
+      vec3 i2 = max(g.xyz, l.zxy);
+      vec3 x1 = x0 - i1 + C.xxx;
+      vec3 x2 = x0 - i2 + C.yyy;
+      vec3 x3 = x0 - D.yyy;
+      i = mod289(i);
+      vec4 p = permute( permute( permute(
+                 i.z + vec4(0.0, i1.z, i2.z, 1.0))
+               + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+               + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+      float n_ = 0.142857142857;
+      vec3 ns = n_ * D.wyz - D.xzx;
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+      vec4 x_ = floor(j * ns.z);
+      vec4 y_ = floor(j - 7.0 * x_);
+      vec4 x = x_ * ns.x + ns.yyyy;
+      vec4 y = y_ * ns.x + ns.yyyy;
+      vec4 h = 1.0 - abs(x) - abs(y);
+      vec4 b0 = vec4(x.xy, y.xy);
+      vec4 b1 = vec4(x.zw, y.zw);
+      vec4 s0 = floor(b0)*2.0 + 1.0;
+      vec4 s1 = floor(b1)*2.0 + 1.0;
+      vec4 sh = -step(h, vec4(0.0));
+      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+      vec3 p0 = vec3(a0.xy, h.x);
+      vec3 p1 = vec3(a0.zw, h.y);
+      vec3 p2 = vec3(a1.xy, h.z);
+      vec3 p3 = vec3(a1.zw, h.w);
+      vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+      p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m*m;
+      return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    }
+    float fbm(vec3 p){
+      float v = 0.0, a = 0.5;
+      for (int i = 0; i < 4; i++){ v += a*snoise(p); p *= 2.0; a *= 0.5; }
+      return v;
+    }
+  `;
+
+
+    const NOISE_GLSL = `
+float n_fade(float t){ return t*t*t*(t*(t*6.0-15.0)+10.0); }
+vec4  n_perm(vec4 x){ return mod(((x*34.0)+1.0)*x, 289.0); }
+float snoise(vec3 v){
+  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+  vec3 i  = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+  vec3 g  = step(x0.yzx, x0.xyz);
+  vec3 l  = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - 0.5;
+  i = mod(i, 289.0);
+  vec4 p = n_perm(n_perm(n_perm(
+             i.z + vec4(0.0, i1.z, i2.z, 1.0))
+           + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+           + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+  float n_ = 0.142857142857;
+  vec3 ns  = n_ * vec3(2,1.5,1) - vec3(1,0,0.5);
+  vec4 j   = p - 49.0 * floor(p * (ns.z * ns.z));
+  vec4 x_  = floor(j * ns.z);
+  vec4 y_  = floor(j - 7.0 * x_);
+  vec4 xs  = x_ * ns.x + ns.yyyy;
+  vec4 ys  = y_ * ns.x + ns.yyyy;
+  vec4 h   = 1.0 - abs(xs) - abs(ys);
+  vec4 b0  = vec4(xs.xy, ys.xy);
+  vec4 b1  = vec4(xs.zw, ys.zw);
+  vec4 s0  = floor(b0) * 2.0 + 1.0;
+  vec4 s1  = floor(b1) * 2.0 + 1.0;
+  vec4 sh  = -step(h, vec4(0.0));
+  vec4 a0  = b0.xzyw + s0.xzyw * sh.xxyy;
+  vec4 a1  = b1.xzyw + s1.xzyw * sh.zzww;
+  vec3 p0  = vec3(a0.xy, h.x);
+  vec3 p1  = vec3(a0.zw, h.y);
+  vec3 p2  = vec3(a1.xy, h.z);
+  vec3 p3  = vec3(a1.zw, h.w);
+  vec4 nm  = 1.79284291400159 - 0.85373472095314 *
+    vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3));
+  p0 *= nm.x; p1 *= nm.y; p2 *= nm.z; p3 *= nm.w;
+  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+}
+`;
+
+
+
+    // ==========================================
+    // 3 MASTER SCENES
+    // ==========================================
+
+    // SCENE 1: SUN
+    const sceneSun = new THREE.Scene();
+    const sunSystem = new THREE.Group();
+    sceneSun.add(sunSystem);
+    const sunGeo = new THREE.SphereGeometry(SUN_RADIUS, 128, 128);
+    const sunMat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 }, arPos: { value: flareState.pos }, arIntensity: { value: 0.0 } },
+      vertexShader: `
+      varying vec3 vPos; varying vec3 vNormalV;
+      void main(){
+        vPos = position;
+        vNormalV = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+      fragmentShader: NOISE + `
+      uniform float time; uniform vec3 arPos; uniform float arIntensity;
+      varying vec3 vPos; varying vec3 vNormalV;
+      void main(){
+        vec3 p = normalize(vPos);
+        float t = time * 0.06;
+
+        float w = fbm(p * 3.0 + vec3(0.0, t, 0.0));
+        vec3 wp = p + w * 0.25;
+
+        float conv = fbm(wp * 8.0  - vec3(t * 0.5));
+        float gran = fbm(wp * 25.0 + vec3(t * 1.4));
+        float fine = fbm(wp * 50.0 + vec3(t * 2.2));
+        float n = 0.46 * conv + 0.34 * gran + 0.20 * fine;
+        
+        n = n * 0.5 + 0.5; 
+
+        vec3 cDark = vec3(0.50, 0.08, 0.0);
+        vec3 cMid  = vec3(1.00, 0.50, 0.05);
+        vec3 cHot  = vec3(1.00, 0.98, 0.90);
+        
+        float k = smoothstep(0.2, 0.8, n);
+        vec3 col = (k < 0.5) ? mix(cDark, cMid, k * 2.0) : mix(cMid, cHot, (k - 0.5) * 2.0);
+
+        float fac = step(0.78, fbm(p * 55.0 + vec3(t * 3.0)));
+        col += vec3(1.0, 1.0, 0.95) * fac * 1.2;
+
+        float distAR = distance(p, arPos);
+        float arBase = smoothstep(0.4, 0.05, distAR) * 0.6;
+        float arFlare = smoothstep(0.5, 0.0, distAR) * arIntensity * 4.0;
+        
+        col += vec3(1.0, 0.8, 0.4) * arBase;
+        col += vec3(1.0, 0.95, 0.9) * arFlare;
+
+        float ndv = max(dot(normalize(vNormalV), vec3(0.0, 0.0, 1.0)), 0.0);
+        float limb = pow(ndv, 0.5);
+        col *= mix(0.65, 1.15, limb);
+        col = mix(col * vec3(1.0, 0.45, 0.2), col, limb);
+
+        float rim = pow(1.0 - ndv, 3.0);
+        col += vec3(1.0, 0.6, 0.2) * rim * 0.8;
+
+        gl_FragColor = vec4(col * 1.35, 1.0);
+      }
+    `
+    });
+    const sun = new THREE.Mesh(sunGeo, sunMat);
+    sunSystem.add(sun);
+
+    const coronaBillboardMat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 }, coreR: { value: 0.25 }, flareGlow: { value: 0.0 } },
+      vertexShader: `varying vec2 vUv; void main(){ vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: NOISE + `
+      uniform float time; uniform float coreR; uniform float flareGlow; varying vec2 vUv;
+      void main(){
+        vec2 pp = vUv - 0.5;
+        float r = length(pp) * 2.0;
+        float ang = atan(pp.y, pp.x);
+
+        float na = fbm(vec3(cos(ang) * 20.0, sin(ang) * 20.0, time * 0.08));
+        float needles = pow(na * 0.5 + 0.5, 3.0);
+        float streamer = fbm(vec3(cos(ang) * 1.5, sin(ang) * 1.5, time * 0.04)) * 0.5 + 0.5;
+
+        float disk = smoothstep(coreR * 0.9, coreR * 1.08, r);
+        float rayFall = pow(max(0.0, 1.0 - r), 2.2);
+        float halo = pow(max(0.0, 1.0 - r), 4.5);
+
+        float rays = needles * streamer * rayFall;
+        float a = (rays * 0.95 + halo * (0.3 + flareGlow * 0.5)) * disk;
+
+        vec3 col = mix(vec3(1.0, 0.3, 0.05), vec3(1.0, 0.65, 0.15), clamp(rayFall, 0.0, 1.0)) * 1.6;
+        gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+      }
+    `,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false
+    });
+    const coronaBillboard = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), coronaBillboardMat);
+    coronaBillboard.position.set(0, 0, 0);
+    sunSystem.add(coronaBillboard);
+
+    const promMats = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize();
+      let a = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0, 1, 0)).normalize();
+      if (a.lengthSq() < 0.01) a = new THREE.Vector3(1, 0, 0);
+
+      const sep = 0.08 + Math.random() * 0.08;
+      const hgt = 0.12 + Math.random() * 0.18;
+      const foot1 = d.clone().multiplyScalar(SUN_RADIUS * 0.92).addScaledVector(a, -sep);
+      const foot2 = d.clone().multiplyScalar(SUN_RADIUS * 0.92).addScaledVector(a, sep);
+      const apex = d.clone().multiplyScalar(SUN_RADIUS * (1.0 + hgt));
+
+      const curve = new THREE.QuadraticBezierCurve3(foot1, apex, foot2);
+      const geo = new THREE.TubeGeometry(curve, 28, 0.012, 5, false);
+
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { time: { value: 0 } },
+        vertexShader: `varying vec2 vUv; varying vec3 vP; void main(){ vUv=uv; vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+        fragmentShader: NOISE + `
+        uniform float time; varying vec2 vUv; varying vec3 vP;
+        void main(){
+          float nz = fbm(vP * 10.0 + vec3(time * 0.5)) * 0.5 + 0.5;
+          vec3 col = mix(vec3(0.8, 0.1, 0.0), vec3(1.0, 0.6, 0.1), nz);
+          float tip = smoothstep(0.0, 0.2, vUv.x) * smoothstep(1.0, 0.8, vUv.x);
+          gl_FragColor = vec4(col, tip * nz * 0.35);
+        }
+      `,
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+      });
+      sunSystem.add(new THREE.Mesh(geo, mat));
+      promMats.push(mat);
+    }
+
+    const arcMats = [];
+    for (let i = 0; i < 12; i++) {
+      let phi = i * (Math.PI * 2 / 12);
+      let d = new THREE.Vector3(Math.cos(phi), 0.2, Math.sin(phi)).normalize();
+
+      let a = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0, 1, 0)).normalize();
+      if (a.lengthSq() < 0.01) a = new THREE.Vector3(1, 0, 0);
+
+      const sep = 0.15;
+      const hgt = 0.4; // 1.4 * SUN_RADIUS
+      const foot1 = d.clone().multiplyScalar(SUN_RADIUS * 0.95).addScaledVector(a, -sep);
+      const foot2 = d.clone().multiplyScalar(SUN_RADIUS * 0.95).addScaledVector(a, sep);
+      const apex = d.clone().multiplyScalar(SUN_RADIUS * (1.0 + hgt));
+
+      const geo = new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(foot1, apex, foot2), 40, 0.008, 4, false);
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { time: { value: 0 }, phase: { value: Math.random() * 6.28 }, flarePulse: { value: 0.0 } },
+        vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+        fragmentShader: `
+        uniform float time, phase, flarePulse; varying vec2 vUv;
+        void main(){
+          float tip = smoothstep(0.0, 0.1, vUv.x) * smoothstep(1.0, 0.9, vUv.x);
+          float pulse = smoothstep(0.85, 1.0, sin(vUv.x * 10.0 - time * (3.0 + flarePulse * 15.0) + phase) * 0.5 + 0.5);
+          vec3 col = vec3(0.0, 0.8, 1.0) + vec3(0.5, 0.9, 1.0) * pulse;
+          gl_FragColor = vec4(col, tip * (0.3 + 0.7 * pulse + flarePulse * 0.5));
+        }
+      `,
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+      });
+      const arcMesh = new THREE.Mesh(geo, mat);
+      arcMesh.rotation.y = (i * Math.PI) / 6;
+      sunSystem.add(arcMesh);
+      arcMats.push(mat);
+    }
+
+    
+    const canvasSprite = document.createElement('canvas');
+    canvasSprite.width = 128; canvasSprite.height = 128;
+    const ctx = canvasSprite.getContext('2d');
+    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.2, 'rgba(255, 200, 50, 0.8)');
+    grad.addColorStop(1, 'rgba(255, 100, 0, 0)');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
+
+    const flareFlash = new THREE.Sprite(
+      new THREE.SpriteMaterial({ 
+        map: new THREE.CanvasTexture(canvasSprite), 
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        transparent: true
+      })
+    );
+    flareFlash.scale.set(0.8, 0.8, 1.0);
+    flareFlash.position.set(0.72, 0.35, 0.45); // AR13664
+    flareFlash.visible = false;
+    sceneSun.add(flareFlash);
+    const fLight = new THREE.PointLight(0xffaa00, 3.0, 5.0);
+    fLight.position.copy(flareFlash.position);
+    sceneSun.add(fLight);
+
+    // SCENE 2: VOID
+    const sceneVoid = new THREE.Scene();
+    // ── Parker Spiral (Interplanetary Magnetic Field) ────────────────────────────
+    const numSpirals = 25;
+    const ptsPerSpiral = 120;
+    const spiralPos = new Float32Array(numSpirals * ptsPerSpiral * 3);
+    const rAttr = new Float32Array(numSpirals * ptsPerSpiral);
+    const phiAttr = new Float32Array(numSpirals * ptsPerSpiral);
+
+    let idx = 0;
+    for (let i = 0; i < numSpirals; i++) {
+      const phi = (i / numSpirals) * Math.PI * 2;
+      for (let j = 0; j < ptsPerSpiral; j++) {
+        const r = SUN_RADIUS + (j / ptsPerSpiral) * 38.0;
+        spiralPos[idx * 3] = 0;
+        spiralPos[idx * 3 + 1] = 0;
+        spiralPos[idx * 3 + 2] = 0;
+        rAttr[idx] = r;
+        phiAttr[idx] = phi;
+        idx++;
+      }
+    }
+
+    const spiralGeo = new THREE.BufferGeometry();
+    spiralGeo.setAttribute('position', new THREE.BufferAttribute(spiralPos, 3));
+    spiralGeo.setAttribute('radius', new THREE.BufferAttribute(rAttr, 1));
+    spiralGeo.setAttribute('phi', new THREE.BufferAttribute(phiAttr, 1));
+
+    const spiralMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: `
+      attribute float radius;
+      attribute float phi;
+      uniform float uTime;
+      void main() {
+        float theta = radius * 0.25 - uTime * 0.2 + phi;
+        vec3 p = vec3(
+          radius * cos(theta) - 18.0,
+          0.0,
+          radius * sin(theta)
+        );
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }
+    `,
+      fragmentShader: `
+      void main() {
+        gl_FragColor = vec4(0.1, 0.3, 0.6, 0.18);
+      }
+    `,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+
+    const spiralIdx = [];
+    for (let i = 0; i < numSpirals; i++) {
+      for (let j = 0; j < ptsPerSpiral - 1; j++) {
+        const a = i * ptsPerSpiral + j;
+        spiralIdx.push(a, a + 1);
+      }
+    }
+    spiralGeo.setIndex(spiralIdx);
+    const spiralMesh = new THREE.LineSegments(spiralGeo, spiralMat);
+    sceneVoid.add(spiralMesh);
+
+    // ── CME Wavefront (Magnetic Flux Rope) ───────────────────────────────────────
+    const cmeCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-1.0, 0, -5.0),
+      new THREE.Vector3(0.0, 0, -3.0),
+      new THREE.Vector3(1.0, 0, 0.0),
+      new THREE.Vector3(0.0, 0, 3.0),
+      new THREE.Vector3(-1.0, 0, 5.0)
+    ]);
+    const cmeGeo = new THREE.TubeGeometry(cmeCurve, 64, 0.8, 32, false);
+    const cmeMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uTransitProgress: { value: 0.0 }
+      },
+      vertexShader: `
+      varying vec3 vN;
+      varying vec3 vPos;
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        // Taper radius to 0 at ends using local normal
+        float taper = sin(uv.x * 3.14159265);
+        vec3 taperedPos = position - normal * (1.0 - taper) * 0.8;
+        
+        vN = normalize(normalMatrix * normal);
+        vPos = (modelMatrix * vec4(taperedPos, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(taperedPos, 1.0);
+      }
+    `,
+      fragmentShader: `
+      ${NOISE_GLSL}
+      float fbm(vec3 x) {
+        float v = 0.0;
+        float a = 0.5;
+        vec3 shift = vec3(100.0);
+        for (int i = 0; i < 4; ++i) {
+          v += a * snoise(x);
+          x = x * 2.0 + shift;
+          a *= 0.5;
+        }
+        return v;
+      }
+
+      uniform float uTime;
+      uniform float uTransitProgress;
+      varying vec3 vN;
+      varying vec3 vPos;
+      varying vec2 vUv;
+
+      void main() {
+        vec3 normal = normalize(vN);
+
+        float ram = smoothstep(-0.2, 0.8, normal.x);
+
+        float noise = fbm(vec3(vUv.x * 30.0, vUv.y * 4.0, uTime));
+        
+        vec3 crimson = vec3(0.35, 0.01, 0.0);
+        vec3 amber = vec3(1.0, 0.4, 0.05);
+        vec3 yellow = vec3(1.0, 0.85, 0.4);
+
+        vec3 col = mix(crimson, amber, max(0.0, noise + 0.5));
+        col = mix(col, yellow, ram * 0.9 + max(0.0, noise) * 0.1);
+        
+        col += yellow * ram * 2.0; // Ram-Pressure Brightening
+
+        float alpha = smoothstep(0.1, 0.8, noise) * mix(0.9, 0.15, uTransitProgress);
+
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    });
+    const cmeMesh = new THREE.Mesh(cmeGeo, cmeMat);
+    cmeMesh.position.set(0, 0, 0);
+    cmeMesh.frustumCulled = false;
+    sceneVoid.add(cmeMesh);
+
+    // SCENE 3: EARTH
+    const sceneEarth = new THREE.Scene();
+    const SUN_DIR = new THREE.Vector3(-1, 0, 0);
+    const EARTH_R = 1.0;
+    const GROUP_X = 0.0;
+    const state = { auroraBoost: 1 };
+
+    const dirLight = new THREE.DirectionalLight(0xfff5ea, 0.9);
+    dirLight.position.set(-100, 0, 0);
+    sceneEarth.add(dirLight);
+
+    const earthGroup = new THREE.Group();
+    sceneEarth.add(earthGroup);
+    const shockGroup = new THREE.Group();
+    sceneEarth.add(shockGroup);
+
+    const loader = new THREE.TextureLoader();
+    const maxAniso = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+    function tex(url) { const t = loader.load(url); t.anisotropy = maxAniso; return t; }
+
+    const diffTex = tex('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_atmos_2048.jpg');
+    const lghtTex = tex('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_lights_2048.png');
+    const cldTex = tex('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_clouds_1024.png');
+
+    // ── Earth Shader Material (Restored for custom twilight & glint control) ─────
+    const earthMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uDiff: { value: diffTex },
+        uLights: { value: lghtTex },
+        uSunDir: { value: SUN_DIR.clone() }
+      },
+      vertexShader: `
+    varying vec2 vUv;
+    varying vec3 vNW;
+    varying vec3 vVW;
+    void main(){
+      vUv = uv;
+      vNW = normalize(mat3(modelMatrix) * normal);
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vVW = normalize(cameraPosition - wp.xyz);
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+      fragmentShader: `
+    uniform sampler2D uDiff, uLights;
+    uniform vec3  uSunDir;
+    varying vec2 vUv;
+    varying vec3 vNW, vVW;
+
+    void main(){
+      vec3  albedo = texture2D(uDiff, vUv).rgb;
+      vec3  night  = texture2D(uLights, vUv).rgb;
+
+      vec3  N = normalize(vNW);
+      vec3  V = normalize(vVW);
+
+      float dotLight = dot(N, uSunDir);
+      float lighting = smoothstep(-0.15, 0.15, dotLight);
+
+      // [9] Ocean Specular Glint: roughness 0.55 -> sharp glint
+      vec3  H     = normalize(uSunDir + V);
+      float NdotH = max(0.0, dot(N, H));
+      // Water mask (rough proxy based on albedo darkness in ocean)
+      float isOcean = 1.0 - smoothstep(0.0, 0.1, albedo.g); 
+      float specI = pow(max(0.0, NdotH), 64.0) * isOcean * lighting * 0.5;
+      vec3  specC = vec3(1.0) * specI;
+
+      // [11] Civil Twilight Bleed
+      float nightMask = 1.0 - smoothstep(-0.1, 0.1, dotLight);
+      vec3  nightCol  = night * vec3(1.0, 0.78, 0.4) * 2.2 * nightMask;
+
+      vec3 col = albedo * lighting + specC + nightCol;
+      col = min(col, vec3(1.05));
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+    });
+    earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 64, 64), earthMat));
+
+    // ── Cloud Parallax Layer ─────────────────────────────────────────────────────
+    // [12] Scale 1.006 * R, Opacity 0.75
+    const cloudMat = new THREE.MeshBasicMaterial({
+      map: cldTex, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    const cloudMesh = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.006, 64, 64), cloudMat);
+    // Rotate slightly to mismatch terrain for parallax shadowing
+    cloudMesh.rotation.y = 0.5;
+    earthGroup.add(cloudMesh);
+
+    // ── Atmosphere Falloff ───────────────────────────────────────────────────────
+    // [10] Cyan atmosphere shell (1.025 * R) with smooth Fresnel
+    const atmoMat = new THREE.ShaderMaterial({
+      uniforms: { uSunDir: { value: SUN_DIR.clone() } },
+      vertexShader: `
+    varying vec3 vN;
+    varying vec3 vV;
+    void main(){
+      vN = normalize(mat3(modelMatrix) * normal);
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vV = normalize(cameraPosition - wp.xyz);
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+      fragmentShader: `
+    uniform vec3 uSunDir;
+    varying vec3 vN, vV;
+    void main(){
+      vec3 N = normalize(vN);
+      vec3 V = normalize(vV);
+      float fresnel = pow(max(0.0, 1.0 - max(0.0, dot(N, V))), 4.0);
+      float daySide = smoothstep(-0.25, 0.2, dot(N, uSunDir));
+      vec3 col = vec3(0.15, 0.45, 0.9);
+      col = min(col, vec3(1.05));
+      gl_FragColor = vec4(col, fresnel * daySide * 0.45);
+    }
+  `,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide
+    });
+    earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.025, 64, 64), atmoMat));
+
+    // ── Dedicated Aurora Shell (1.018 R) ─────────────────────────────────────────
+    // [5] Dedicated Auroral Shell 1.018 * EarthRadius
+    // [6] Volumetric Curtains
+    // [7] Altitude Color Gradient
+    // [8] Blending & DepthWrite
+    const auroraMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBoost: { value: state.auroraBoost },
+      },
+      vertexShader: `
+    varying vec3 vPos;
+    varying vec3 vN;
+    varying vec3 vV;
+    void main(){
+      vPos = position;
+      vN = normalize(mat3(modelMatrix) * normal);
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vV = normalize(cameraPosition - wp.xyz);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+      fragmentShader: `
+    ${NOISE_GLSL}
+    uniform float uTime, uBoost;
+    varying vec3 vPos;
+    varying vec3 vN, vV;
+
+    void main(){
+      vec3 p = normalize(vPos);
+
+      // Oval ring
+      float dN = distance(p, normalize(vec3(0.0, 0.94, 0.15)));
+      float dS = distance(p, normalize(vec3(0.0, -0.94, -0.15)));
+      float ring = exp(-dN * dN * 75.0) + exp(-dS * dS * 75.0);
+
+      // [6] Aurora Curtain Diffusion
+      float nVal = snoise(vec3(vPos.x * 45.0, vPos.y * 5.0, uTime * 1.2)) * 0.5 + 0.5;
+      float folds = smoothstep(0.2, 0.8, nVal);
+      ring *= folds;
+
+      // [7] Altitude proxy mixing: viewing angle Fresnel helps map upper edges to pink
+      float fresnel = 1.0 - max(0.0, dot(normalize(vN), normalize(vV)));
+      float alt = mix(fresnel, folds, 0.4);
+
+      vec3 colBottom = vec3(0.1, 1.0, 0.35); // 557.7nm Oxygen Green
+      vec3 colTop    = vec3(0.9, 0.2, 0.6);  // Nitrogen Pink
+      vec3 auroCol   = mix(colBottom, colTop, smoothstep(0.2, 0.8, alt));
+
+      gl_FragColor = vec4(auroCol, ring * uBoost * 0.55);
+    }
+  `,
+      // [8] Additive Depth Dissolve
+      transparent: true, blending: THREE.AdditiveBlending,
+      side: THREE.FrontSide, depthWrite: false,
+    });
+    earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.012, 64, 64), auroraMat));
+
+    // ── Bow Shock (Ghost Sheath & Chromaticity) ──────────────────────────────────
+    (function () {
+      const r0 = 1.1, al = 0.58, TMAX = 2.0, TS = 80, PS = 100;
+      const pos = [], uv = [], idx = [];
+
+      for (let i = 0; i <= TS; i++) {
+        const theta = (i / TS) * TMAX;
+        const r = r0 * Math.pow(2.0 / (1 + Math.cos(theta)), al);
+        for (let j = 0; j <= PS; j++) {
+          const phi = (j / PS) * Math.PI * 2;
+          pos.push(
+            -r * Math.cos(theta),
+            r * Math.sin(theta) * Math.cos(phi),
+            r * Math.sin(theta) * Math.sin(phi)
+          );
+          uv.push(i / TS, j / PS);
+        }
+      }
+      for (let i = 0; i < TS; i++) {
+        for (let j = 0; j < PS; j++) {
+          const a = i * (PS + 1) + j, b = a + PS + 1;
+          idx.push(a, b, a + 1, b, b + 1, a + 1);
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv), 2));
+      geo.setIndex(idx);
+      geo.computeVertexNormals();
+
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { uTime: { value: 0 } },
+        vertexShader: `
+      varying vec3 vN;
+      varying vec3 vPos;
+      varying vec2 vUv;
+      void main(){
+        vPos = position;
+        vUv  = uv;
+        vN   = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+        fragmentShader: `
+      ${NOISE_GLSL}
+      uniform float uTime;
+      varying vec3 vN, vPos;
+      varying vec2 vUv;
+
+      void main(){
+        vec3 normal = normalize(vPos); // Fixed seam
+
+        float a = pow(1.0 - abs(dot(normal, vec3(0.0, 0.0, 1.0))), 2.0) * 0.20;
+
+        // [3] Dual-Tone Plasma Chromaticity
+        vec3 cyan = vec3(0.1, 0.8, 1.0);
+        vec3 violet = vec3(0.3, 0.05, 0.8);
+        float grad = smoothstep(-1.5, 1.0, vPos.x);
+        vec3 col = mix(cyan, violet, grad);
+
+        gl_FragColor = vec4(col, max(0.0, a));
+      }
+    `,
+        transparent: true, blending: THREE.AdditiveBlending, opacity: 0.28,
+        depthWrite: false, side: THREE.DoubleSide, wireframe: false,
+      });
+
+      const bowShockMesh = new THREE.Mesh(geo, mat);
+      bowShockMesh.renderOrder = 999;
+      shockGroup.add(bowShockMesh);
+      shockGroup.userData.shockMat = mat;
+    })();
+
+    // Fix Bow Shock scale as requested
+    shockGroup.children[0].scale.set(1.2, 3.0, 3.0);
+
+    // ==========================================
+    // 7 VIEWPORT CAMERAS
+    // ==========================================
+
+    const cam1 = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    cam1.position.set(0, 0, 6); // Quiet Sun
+
+    const cam2 = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    cam2.position.set(1.5, 1.5, 2.5); cam2.lookAt(0, 0, 0); // Mag Build Up
+
+    const cam3 = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    cam3.position.set(1.5, 1.5, 2.5); cam3.lookAt(0, 0, 0); // Flare
+
+    const cam4 = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    cam4.position.set(2.5, 0, 4); cam4.lookAt(0, 0, 0); // CME Launch
+
+    const cam5 = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    cam5.position.set(0, 15, 30); cam5.lookAt(0, 0, 0);
+    cam5.near = 0.1;
+    cam5.far = 1000;
+    cam5.updateProjectionMatrix(); // Propagation
+
+    const cam6 = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    cam6.position.set(-3, 0, 3); cam6.lookAt(0, 0, 0); // Mag Impact
+
+    const cam7 = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    cam7.fov = 22;
+    cam7.position.set(sceneEarth.position.x, 3.5, 3.5);
+    cam7.lookAt(sceneEarth.position);
+    cam7.near = 0.05;
+    cam7.updateProjectionMatrix(); // Aurora
+
+    // ==========================================
+    // PANEL MAPPING
+    // ==========================================
+    const PANELS = [
+      { id: 'panel-1', scene: sceneSun, camera: cam1 },
+      { id: 'panel-2', scene: sceneSun, camera: cam2 },
+      { id: 'panel-3', scene: sceneSun, camera: cam3 },
+      { id: 'panel-4', scene: sceneSun, camera: cam4 },
+      { id: 'panel-5', scene: sceneVoid, camera: cam5 },
+      { id: 'panel-6', scene: sceneEarth, camera: cam6 },
+      { id: 'panel-7', scene: sceneEarth, camera: cam7 },
+    ];
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ==========================================
+    // RENDER LOOP
+    // ==========================================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const t = clock.getElapsedTime();
+
+      // Update Sun
+      sunSystem.rotation.y += 0.001;
+      sunMat.uniforms.time.value = t;
+      sunMat.uniforms.arIntensity.value = 0.5; // static for now
+      coronaBillboardMat.uniforms.time.value = t;
+
+      for (let i = 0; i < promMats.length; i++) promMats[i].uniforms.time.value = t;
+      for (let i = 0; i < arcMats.length; i++) {
+        arcMats[i].uniforms.time.value = t;
+        arcMats[i].uniforms.flarePulse.value = 0.5;
+      }
+
+      // Update Void
+      spiralMat.uniforms.uTime.value = t;
+      cmeMat.uniforms.uTime.value = t;
+      const uTransitProgress = (t % 12.0) / 12.0;
+      cmeMat.uniforms.uTransitProgress.value = uTransitProgress;
+      cmeMesh.position.x = -15.0 + uTransitProgress * 32.0;
+      const scale = 1.0 + (uTransitProgress * 2.5);
+      cmeMesh.scale.set(scale, scale, scale);
+
+      // Update Earth
+      earthGroup.rotation.y += 0.0009;
+      auroraMat.uniforms.uTime.value = t;
+      cloudMesh.rotation.y += 0.001;
+      if (shockGroup.userData.shockMat) {
+        shockGroup.userData.shockMat.uniforms.uTime.value = t;
+      }
+
+      // The Scissor Pipeline
+      PANELS.forEach(panel => {
+        const element = document.getElementById(panel.id);
+        if (!element) return;
+
+        const rect = element.getBoundingClientRect();
+
+        // Convert DOM coordinates to WebGL bottom-up coordinates
+        const width = rect.right - rect.left;
+        const height = rect.bottom - rect.top;
+        const left = rect.left;
+        const bottom = renderer.domElement.clientHeight - rect.bottom;
+
+        panel.camera.aspect = width / height;
+        panel.camera.updateProjectionMatrix();
+
+        renderer.setViewport(left, bottom, width, height);
+        renderer.setScissor(left, bottom, width, height);
+
+        // Render the specific scene & camera for this box
+        
+        if (panel.camera === cam3) {
+          flareFlash.visible = true;
+        }
+        renderer.render(panel.scene, panel.camera);
+        if (panel.camera === cam3) {
+          flareFlash.visible = false;
+        }
+      });
+    }
+
+    animate();
+  </script>
+</body>
+
+</html>

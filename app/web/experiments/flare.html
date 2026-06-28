@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SOLAR INTELLIGENCE · Solar Flare (flare-v1)</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #c {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .frame {
+      position: fixed;
+      inset: 12px;
+      pointer-events: none;
+      z-index: 5;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+    }
+
+    .ui {
+      font-family: "Space Grotesk", "SFMono-Regular", ui-monospace, monospace;
+      font-weight: 300;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: rgba(255, 255, 255, 0.9);
+      pointer-events: none;
+      user-select: none;
+      position: fixed;
+      z-index: 6;
+      padding: 28px;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+    }
+
+    .ui-tl {
+      left: 0;
+      bottom: 0;
+      font-size: 13px;
+      font-weight: 400;
+    }
+
+    .ui-tl small {
+      display: block;
+      letter-spacing: 0.14em;
+      text-transform: none;
+      color: rgba(255, 255, 255, 0.5);
+      margin-top: 6px;
+      font-size: 11px;
+    }
+
+    .ui-tr {
+      right: 0;
+      top: 0;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.8);
+      text-align: right;
+      line-height: 1.8;
+    }
+
+    .ui-hint {
+      right: 0;
+      bottom: 0;
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.35);
+      letter-spacing: 0.15em;
+    }
+
+    .live-indicator {
+      color: #00FF66;
+      font-weight: 600;
+      animation: blink 1.5s infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <div class="frame"></div>
+  <div class="ui ui-tl" id="ui-stage">3 Solar Flare<small>Aditya-L1 · AR 13664 · M2.3 Class</small></div>
+  <div class="ui ui-tr" id="telemetry">FILTER: Fe XVIII 94&Aring;<br>FOV: 1.2 R&#9737; | FPS: 60 <span
+      class="live-indicator">● LIVE</span></div>
+  <div class="ui ui-hint">double-click to trigger flare · drag to orbit · scroll to zoom</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+  <script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById('c');
+      const SUN_RADIUS = 1.0;
+      const SUN_POS_X = -0.45;
+
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.0;
+      renderer.setClearColor(0x000000, 1.0);
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+
+      const camera = new THREE.PerspectiveCamera(33, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(0, 0, 5.0);
+
+      const sunSystem = new THREE.Group();
+      sunSystem.position.x = SUN_POS_X;
+      scene.add(sunSystem);
+
+      const SolarEvent = {
+        stage: 'flare',
+        flareClass: 'M2.3', probability: 0.89, leadTimeMin: 29, activeRegion: 'AR 13664',
+        cme: { speedKms: 1857, widthDeg: 62, etaUtc: '2026-06-16 06:45', densitySpcc: 8.7, confidence: 0.89 },
+        impact: { kp: 7.1, dstNt: -135, bzNt: -18.6, vswKms: 782 }
+      };
+
+      const flareState = {
+        active: false,
+        progress: 0,
+        intensity: 0,
+        pos: new THREE.Vector3(0.6, 0.35, 0.72).normalize()
+      };
+
+      function getFlareIntensity(fc) {
+        const type = fc.charAt(0).toUpperCase();
+        const val = parseFloat(fc.substring(1)) || 1.0;
+        let base = 0;
+        if (type === 'A') base = 0.1;
+        else if (type === 'B') base = 0.2;
+        else if (type === 'C') base = 0.4;
+        else if (type === 'M') base = 0.7;
+        else if (type === 'X') base = 1.0;
+        return base + (val / 10.0) * (type === 'X' ? 0.5 : 0.3);
+      }
+
+      window.triggerSolarFlare = function (flareClass, flareData) {
+        SolarEvent.flareClass = flareClass;
+        if (flareData && flareData.activeRegion) SolarEvent.activeRegion = flareData.activeRegion;
+        flareState.active = true;
+        flareState.progress = 0;
+        flareState.intensity = getFlareIntensity(flareClass);
+        document.getElementById('ui-stage').innerHTML = \`3 Solar Flare<small>Aditya-L1 · \${SolarEvent.activeRegion} · \${SolarEvent.flareClass} Class</small>\`;
+  };
+
+  window.setSolarReplayState = function(isPlaying) {
+    autorot = isPlaying;
+  };
+
+  const NOISE = \`
+    vec3 mod289(vec3 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 mod289(vec4 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314*r;}
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+      vec3 i  = floor(v + dot(v, C.yyy));
+      vec3 x0 = v - i + dot(i, C.xxx);
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g.xyz, l.zxy);
+      vec3 i2 = max(g.xyz, l.zxy);
+      vec3 x1 = x0 - i1 + C.xxx;
+      vec3 x2 = x0 - i2 + C.yyy;
+      vec3 x3 = x0 - D.yyy;
+      i = mod289(i);
+      vec4 p = permute( permute( permute(
+                 i.z + vec4(0.0, i1.z, i2.z, 1.0))
+               + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+               + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+      float n_ = 0.142857142857;
+      vec3 ns = n_ * D.wyz - D.xzx;
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+      vec4 x_ = floor(j * ns.z);
+      vec4 y_ = floor(j - 7.0 * x_);
+      vec4 x = x_ * ns.x + ns.yyyy;
+      vec4 y = y_ * ns.x + ns.yyyy;
+      vec4 h = 1.0 - abs(x) - abs(y);
+      vec4 b0 = vec4(x.xy, y.xy);
+      vec4 b1 = vec4(x.zw, y.zw);
+      vec4 s0 = floor(b0)*2.0 + 1.0;
+      vec4 s1 = floor(b1)*2.0 + 1.0;
+      vec4 sh = -step(h, vec4(0.0));
+      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+      vec3 p0 = vec3(a0.xy, h.x);
+      vec3 p1 = vec3(a0.zw, h.y);
+      vec3 p2 = vec3(a1.xy, h.z);
+      vec3 p3 = vec3(a1.zw, h.w);
+      vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+      p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m*m;
+      return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    }
+    float fbm(vec3 p){
+      float v = 0.0, a = 0.5;
+      for (int i = 0; i < 4; i++){ v += a*snoise(p); p *= 2.0; a *= 0.5; }
+      return v;
+    }
+  \`;
+
+  const sunGeo = new THREE.SphereGeometry(SUN_RADIUS, 128, 128);
+  const sunMat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 }, arPos: { value: flareState.pos }, arIntensity: { value: 0.0 } },
+    vertexShader: \`
+      varying vec3 vPos; varying vec3 vNormalV;
+      void main(){
+        vPos = position;
+        vNormalV = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    \`,
+    fragmentShader: NOISE + \`
+      uniform float time; uniform vec3 arPos; uniform float arIntensity;
+      varying vec3 vPos; varying vec3 vNormalV;
+      void main(){
+        vec3 p = normalize(vPos);
+        float t = time * 0.06;
+
+        float w = fbm(p * 3.0 + vec3(0.0, t, 0.0));
+        vec3 wp = p + w * 0.25;
+
+        float conv = fbm(wp * 8.0  - vec3(t * 0.5));
+        float gran = fbm(wp * 25.0 + vec3(t * 1.4));
+        float fine = fbm(wp * 50.0 + vec3(t * 2.2));
+        float n = 0.46 * conv + 0.34 * gran + 0.20 * fine;
+        
+        n = n * 0.5 + 0.5; 
+
+        vec3 cDark = vec3(0.50, 0.08, 0.0);
+        vec3 cMid  = vec3(1.00, 0.50, 0.05);
+        vec3 cHot  = vec3(1.00, 0.98, 0.90);
+        
+        float k = smoothstep(0.2, 0.8, n);
+        vec3 col = (k < 0.5) ? mix(cDark, cMid, k * 2.0) : mix(cMid, cHot, (k - 0.5) * 2.0);
+
+        float fac = step(0.78, fbm(p * 55.0 + vec3(t * 3.0)));
+        col += vec3(1.0, 1.0, 0.95) * fac * 1.2;
+
+        float distAR = distance(p, arPos);
+        float arBase = smoothstep(0.4, 0.05, distAR) * 0.6;
+        float arFlare = smoothstep(0.5, 0.0, distAR) * arIntensity * 4.0;
+        
+        col += vec3(1.0, 0.8, 0.4) * arBase;
+        col += vec3(1.0, 0.95, 0.9) * arFlare;
+
+        float ndv = max(dot(normalize(vNormalV), vec3(0.0, 0.0, 1.0)), 0.0);
+        float limb = pow(ndv, 0.5);
+        col *= mix(0.65, 1.15, limb);
+        col = mix(col * vec3(1.0, 0.45, 0.2), col, limb);
+
+        float rim = pow(1.0 - ndv, 3.0);
+        col += vec3(1.0, 0.6, 0.2) * rim * 0.8;
+
+        gl_FragColor = vec4(col * 1.35, 1.0);
+      }
+    \`
+  });
+  const sun = new THREE.Mesh(sunGeo, sunMat);
+  sunSystem.add(sun);
+
+  const coronaBillboardMat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 }, coreR: { value: 0.25 }, flareGlow: { value: 0.0 } },
+    vertexShader: \`varying vec2 vUv; void main(){ vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }\`,
+    fragmentShader: NOISE + \`
+      uniform float time; uniform float coreR; uniform float flareGlow; varying vec2 vUv;
+      void main(){
+        vec2 pp = vUv - 0.5;
+        float r = length(pp) * 2.0;
+        float ang = atan(pp.y, pp.x);
+
+        float na = fbm(vec3(cos(ang) * 20.0, sin(ang) * 20.0, time * 0.08));
+        float needles = pow(na * 0.5 + 0.5, 3.0);
+        float streamer = fbm(vec3(cos(ang) * 1.5, sin(ang) * 1.5, time * 0.04)) * 0.5 + 0.5;
+
+        float disk = smoothstep(coreR * 0.9, coreR * 1.08, r);
+        float rayFall = pow(max(0.0, 1.0 - r), 2.2);
+        float halo = pow(max(0.0, 1.0 - r), 4.5);
+
+        float rays = needles * streamer * rayFall;
+        float a = (rays * 0.95 + halo * (0.3 + flareGlow * 0.5)) * disk;
+
+        vec3 col = mix(vec3(1.0, 0.3, 0.05), vec3(1.0, 0.65, 0.15), clamp(rayFall, 0.0, 1.0)) * 1.4;
+        gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+      }
+    \`,
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const coronaBillboard = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), coronaBillboardMat);
+  coronaBillboard.position.set(SUN_POS_X, 0, 0);
+  scene.add(coronaBillboard);
+
+  const promMats = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new THREE.Vector3(Math.random()*2-1, Math.random()*2-1, Math.random()*2-1).normalize();
+    let a = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0,1,0)).normalize();
+    if (a.lengthSq() < 0.01) a = new THREE.Vector3(1,0,0);
+
+    const sep = 0.08 + Math.random() * 0.08;
+    const hgt = 0.12 + Math.random() * 0.18;
+    const foot1 = d.clone().multiplyScalar(SUN_RADIUS * 0.92).addScaledVector(a, -sep);
+    const foot2 = d.clone().multiplyScalar(SUN_RADIUS * 0.92).addScaledVector(a, sep);
+    const apex  = d.clone().multiplyScalar(SUN_RADIUS * (1.0 + hgt));
+
+    const curve = new THREE.QuadraticBezierCurve3(foot1, apex, foot2);
+    const geo = new THREE.TubeGeometry(curve, 28, 0.012, 5, false);
+    
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 } },
+      vertexShader: \`varying vec2 vUv; varying vec3 vP; void main(){ vUv=uv; vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} \`,
+      fragmentShader: NOISE + \`
+        uniform float time; varying vec2 vUv; varying vec3 vP;
+        void main(){
+          float nz = fbm(vP * 10.0 + vec3(time * 0.5)) * 0.5 + 0.5;
+          vec3 col = mix(vec3(0.8, 0.1, 0.0), vec3(1.0, 0.6, 0.1), nz);
+          float tip = smoothstep(0.0, 0.2, vUv.x) * smoothstep(1.0, 0.8, vUv.x);
+          gl_FragColor = vec4(col, tip * nz * 0.35);
+        }
+      \`,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+    });
+    sunSystem.add(new THREE.Mesh(geo, mat));
+    promMats.push(mat);
+  }
+
+  const arcMats = [];
+  for (let k = 0; k < 20; k++) {
+    let d;
+    if (k < 15) {
+      d = flareState.pos.clone().add(new THREE.Vector3(Math.random()*0.5-0.25, Math.random()*0.5-0.25, Math.random()*0.5-0.25)).normalize();
+    } else {
+      d = new THREE.Vector3(Math.random()*2-1, Math.random()*2-1, Math.random()*2-1).normalize();
+    }
+    
+    let a = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0,1,0)).normalize();
+    if (a.lengthSq() < 0.01) a = new THREE.Vector3(1,0,0);
+
+    const sep = 0.15 + Math.random() * 0.15;
+    const hgt = 0.2 + Math.random() * 0.35;
+    const foot1 = d.clone().multiplyScalar(SUN_RADIUS * 0.95).addScaledVector(a, -sep);
+    const foot2 = d.clone().multiplyScalar(SUN_RADIUS * 0.95).addScaledVector(a, sep);
+    const apex  = d.clone().multiplyScalar(SUN_RADIUS * (1.0 + hgt));
+
+    const geo = new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(foot1, apex, foot2), 40, 0.005, 4, false);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 }, phase: { value: Math.random()*6.28 }, flarePulse: { value: 0.0 } },
+      vertexShader: \`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} \`,
+      fragmentShader: \`
+        uniform float time, phase, flarePulse; varying vec2 vUv;
+        void main(){
+          float tip = smoothstep(0.0, 0.1, vUv.x) * smoothstep(1.0, 0.9, vUv.x);
+          float pulse = smoothstep(0.85, 1.0, sin(vUv.x * 10.0 - time * (3.0 + flarePulse * 15.0) + phase) * 0.5 + 0.5);
+          vec3 col = vec3(0.0, 0.8, 1.0) + vec3(0.5, 0.9, 1.0) * pulse;
+          gl_FragColor = vec4(col, tip * (0.3 + 0.7 * pulse + flarePulse * 0.5));
+        }
+      \`,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    sunSystem.add(new THREE.Mesh(geo, mat));
+    arcMats.push(mat);
+  }
+
+  const flashGeo = new THREE.PlaneGeometry(3.5, 3.5);
+  const flashMat = new THREE.ShaderMaterial({
+    uniforms: { flashIntensity: { value: 0.0 } },
+    vertexShader: \`
+      varying vec2 vUv; 
+      void main(){ 
+        vUv=uv; 
+        vec4 mvPosition = modelViewMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
+        mvPosition.xy += position.xy;
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    \`,
+    fragmentShader: \`
+      uniform float flashIntensity; varying vec2 vUv;
+      void main(){
+        float d = length(vUv - 0.5) * 2.0;
+        float core = pow(max(0.0, 1.0 - d), 6.0);
+        float glow = pow(max(0.0, 1.0 - d), 2.5);
+        vec3 col = vec3(1.0, 0.98, 0.9) * core + vec3(0.4, 0.7, 1.0) * glow * 0.6;
+        gl_FragColor = vec4(col * flashIntensity * 2.5, flashIntensity * glow);
+      }
+    \`,
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const flashMesh = new THREE.Mesh(flashGeo, flashMat);
+  flashMesh.position.copy(flareState.pos).multiplyScalar(SUN_RADIUS);
+  sunSystem.add(flashMesh);
+
+  const starPos = new Float32Array(2000 * 3);
+  for (let i = 0; i < 2000; i++) {
+    const r = 30 + Math.random() * 40, u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u);
+    starPos[i*3] = r*s*Math.cos(th); starPos[i*3+1] = r*u; starPos[i*3+2] = r*s*Math.sin(th);
+  }
+  const starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.07, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
+  scene.add(new THREE.Points(starGeo, starMat));
+
+  const composer = new THREE.EffectComposer(renderer);
+  composer.addPass(new THREE.RenderPass(scene, camera));
+  
+  const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.4, 0.35); 
+  composer.addPass(bloom);
+
+  const caPass = new THREE.ShaderPass({
+    uniforms: { tDiffuse: { value: null }, amount: { value: 0.0018 } },
+    vertexShader: \`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} \`,
+    fragmentShader: \`
+      uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv;
+      void main(){
+        vec2 dir = vUv - 0.5; vec2 off = dir * length(dir) * amount * 3.0;
+        gl_FragColor = vec4(texture2D(tDiffuse, vUv - off).r, texture2D(tDiffuse, vUv).g, texture2D(tDiffuse, vUv + off).b, 1.0);
+      }\`
+  });
+  composer.addPass(caPass);
+
+  const grainPass = new THREE.ShaderPass({
+    uniforms: { tDiffuse: { value: null }, time: { value: 0 }, opacity: { value: 0.05 } },
+    vertexShader: \`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} \`,
+    fragmentShader: \`
+      uniform sampler2D tDiffuse; uniform float time, opacity; varying vec2 vUv;
+      float rand(vec2 c){ return fract(sin(dot(c, vec2(12.9898,78.233))) * 43758.5453); }
+      void main(){
+        vec4 col = texture2D(tDiffuse, vUv);
+        col.rgb += (rand(vUv + fract(time)) - 0.5) * opacity;
+        gl_FragColor = col;
+      }\`
+  });
+  composer.addPass(grainPass);
+
+  const telemetryEl = document.getElementById('telemetry');
+  setInterval(() => {
+    if(telemetryEl) telemetryEl.innerHTML = \`FILTER: Fe XVIII 94&Aring;<br>FOV: 1.2 R&#9737; | FPS: \${Math.floor(59 + Math.random()*2)} <span class="live-indicator">● LIVE</span>\`;
+  }, 400);
+
+  let dragging = false, lx = 0, ly = 0, autorot = true, lastUp = 0;
+  canvas.addEventListener('mousedown', e => { dragging = true; lx = e.clientX; ly = e.clientY; });
+  window.addEventListener('mouseup', () => { if (dragging) { dragging = false; lastUp = performance.now(); } });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    sunSystem.rotation.y += (e.clientX - lx) * 0.005;
+    sunSystem.rotation.x = Math.max(-1.1, Math.min(1.1, sunSystem.rotation.x + (e.clientY - ly) * 0.005));
+    lx = e.clientX; ly = e.clientY;
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    camera.position.z = Math.max(3.2, Math.min(8.5, camera.position.z + e.deltaY * 0.0025));
+  }, { passive: false });
+
+  canvas.addEventListener('dblclick', () => {
+    window.triggerSolarFlare('X1.5');
+  });
+
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h); composer.setSize(w, h); bloom.resolution.set(w, h);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+  });
+
+  const clock = new THREE.Clock();
+  
+  function tick(t) {
+    if (autorot && !dragging && performance.now() - lastUp > 2000) sunSystem.rotation.y += 0.001;
+
+    let flareIntensityVal = 0.0;
+    if (flareState.active) {
+      flareState.progress += 0.004; 
+      if (flareState.progress > 1.0) flareState.active = false;
+      const p = flareState.progress;
+      if (p < 0.05) flareIntensityVal = p / 0.05;
+      else if (p < 0.1) flareIntensityVal = 1.0;
+      else flareIntensityVal = Math.pow(1.0 - (p - 0.1)/0.9, 3.0);
+      
+      flareIntensityVal *= flareState.intensity;
+    }
+
+    sunMat.uniforms.time.value = t * 0.4;
+    sunMat.uniforms.arIntensity.value = flareIntensityVal;
+    
+    coronaBillboardMat.uniforms.time.value = t;
+    coronaBillboardMat.uniforms.flareGlow.value = flareIntensityVal;
+    
+    grainPass.uniforms.time.value = t;
+    
+    for (let i = 0; i < promMats.length; i++) promMats[i].uniforms.time.value = t;
+    for (let i = 0; i < arcMats.length; i++) {
+      arcMats[i].uniforms.time.value = t;
+      arcMats[i].uniforms.flarePulse.value = flareIntensityVal;
+    }
+
+    const worldAR = flashMesh.getWorldPosition(new THREE.Vector3());
+    const viewDir = camera.position.clone().sub(worldAR).normalize();
+    const arNormal = flashMesh.position.clone().normalize().applyQuaternion(sunSystem.quaternion);
+    const visibility = Math.max(0.0, arNormal.dot(viewDir));
+    flashMat.uniforms.flashIntensity.value = flareIntensityVal * visibility;
+
+    composer.render();
+  }
+
+  window.__render = function(t) { tick(typeof t==='number'?t:clock.getElapsedTime()); };
+  function renderLoop() {
+    requestAnimationFrame(renderLoop);
+    tick(clock.getElapsedTime());
+  }
+  
+  window.triggerSolarFlare(SolarEvent.flareClass, SolarEvent);
+  renderLoop();
+})();
+  </script>
+</body>
+
+</html>

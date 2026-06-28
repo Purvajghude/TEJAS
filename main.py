@@ -5,6 +5,12 @@ Usage:
     python main.py forecast   # train + evaluate the forecaster (logistic/RF/LGBM)
     python main.py tcn        # GOES-pretrained temporal model (slow first run)
     python main.py compare    # head-to-head of all forecasting models
+    python main.py ensemble   # TCN + LightGBM stacking ensemble
+    python main.py multiclass # P(C+/M+/X+) multi-class forecast
+    python main.py qpp        # QPP detection on HEL1OS hard X-ray
+    python main.py sharp      # SHARP magnetogram ablation
+    python main.py benchmark  # persistence + climatological baseline comparison
+    python main.py evaluate   # reproduce test accuracy from eval/ (no data needed)
     python main.py web        # launch the 3D-Sun command center (recommended)
     python main.py dashboard  # launch the simpler Streamlit dashboard
     python main.py days       # list available SoLEXS observation days
@@ -75,10 +81,13 @@ def _sharp():
     run()
 
 
+def _benchmark():
+    """Persistence + climatological baseline vs TEJAS, plus literature context."""
+    subprocess.run([sys.executable, "tools/benchmark.py"])
+
+
 def _evaluate():
     """Reproduce held-out test accuracy from eval/ (no raw data needed)."""
-    import subprocess
-    import sys
     subprocess.run([sys.executable, "tools/evaluate.py"])
 
 
@@ -113,8 +122,8 @@ def _days():
 
 COMMANDS = {"run": _run, "forecast": _forecast, "tcn": _tcn, "compare": _compare,
             "ensemble": _ensemble, "multiclass": _multiclass, "qpp": _qpp,
-            "sharp": _sharp, "evaluate": _evaluate, "web": _web,
-            "dashboard": _dashboard, "days": _days}
+            "sharp": _sharp, "benchmark": _benchmark, "evaluate": _evaluate,
+            "web": _web, "dashboard": _dashboard, "days": _days}
 
 
 def main():

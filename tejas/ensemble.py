@@ -224,7 +224,16 @@ def run(cfg: Config | None = None, verbose: bool = True,
     # Lead-time + reliability for the ensemble (the deliverable model).
     p_ens_test = ens_prob(Zt)
     p_ens_val = ens_prob(Zv)
-    lead = F.lead_times(test, p_ens_test, peaks, thr_ens, primary)
+    # Load all flare start times (for lead-to-onset, the stricter metric).
+    # We pass ALL starts (any class) so the searcher can match any peak → start.
+    try:
+        _cat = pd.read_csv(cfg.paths["catalogs"] / "solexs_flares.csv",
+                           parse_dates=["start_time"])
+        _all_starts = _cat["start_time"]
+    except Exception:
+        _all_starts = None
+    lead = F.lead_times(test, p_ens_test, peaks, thr_ens, primary,
+                        starts=_all_starts)
 
     # Two operating points (thresholds fixed on VAL, scored on TEST), so judges
     # can read both the recall-first and the precision-first story:
@@ -242,6 +251,27 @@ def run(cfg: Config | None = None, verbose: bool = True,
                               **F.event_skill(test_times, p_ens_test, peaks,
                                               thr_far, primary)},
     }
+    # Lead-time at the PRECISION operating point (≤1 FA/day threshold).
+    lead_far = F.lead_times(test, p_ens_test, peaks, thr_far, primary,
+                            starts=_all_starts)
+
+    # TCN contribution: how much does adding TCN improve CALIBRATION vs base?
+    # Brier improvement = (lgbm Brier - ensemble Brier) / lgbm Brier
+    brier_lgbm = m_lgbm.get("Brier") or 1.0
+    brier_ens = m_ens.get("Brier") or 1.0
+    tcn_calibration_gain = {
+        "brier_improvement_pct": round(100 * (brier_lgbm - brier_ens) / brier_lgbm, 1),
+        "recall_gain_vs_lgbm": round((m_ens.get("TPR_recall") or 0)
+                                     - (m_lgbm.get("TPR_recall") or 0), 3),
+        "auc_gain_vs_lgbm": round((m_ens.get("ROC_AUC") or 0)
+                                  - (m_lgbm.get("ROC_AUC") or 0), 3),
+        "interpretation": (
+            "TCN's primary contribution is calibration (lower Brier = more reliable "
+            "probabilities), not discrimination (AUC gain is marginal). "
+            "Use the ensemble for probability outputs; LightGBM alone for binary alerts."
+        ),
+    }
+
     bins = np.linspace(0, 1, 11)
     who = np.clip(np.digitize(p_ens_test, bins) - 1, 0, 9)
     reliability = [
@@ -274,7 +304,10 @@ def run(cfg: Config | None = None, verbose: bool = True,
                               "intercept": round(float(meta.intercept_[0]), 3)},
         "ensemble_threshold": round(thr_ens, 4),
         "operating_points": operating_points,
-        "lead_time": {k: v for k, v in lead.items() if k != "leads"},
+        "lead_time": {k: v for k, v in lead.items() if k not in ("leads", "leads_onset")},
+        "lead_time_precision_op": {k: v for k, v in lead_far.items()
+                                   if k not in ("leads", "leads_onset")},
+        "tcn_calibration_gain": tcn_calibration_gain,
         "reliability": reliability,
     }
 

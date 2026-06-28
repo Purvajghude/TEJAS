@@ -21,14 +21,29 @@ HEL1OS Jul 2024 → Jun 2026), with a strict chronological, **leakage-free** spl
 | Flares by class | **6,464 C+**, **1,072 M+**, **68 X** |
 | GOES letter-class agreement | **97 %** |
 | **Neupert precursor** (hard leads soft) | nonthermal hard X-ray peaks **minutes before** the soft peak (median lead ~+184 s) |
-| **Forecast model** (M+, 30-min horizon) | **TCN + LightGBM ensemble, ROC-AUC 0.847**, Brier **0.0062** (well-calibrated) |
-| Median warning lead time | **~29 min** |
-| Operational false-alarm rate | tunable: **0.31 false alarms/day** at the precision operating point |
+| **Forecast model** (M+, 30-min horizon) | **TCN + LightGBM ensemble, ROC-AUC 0.847**, TSS **0.541**, Brier **0.0062** (calibrated) |
+| Median warning lead time | **~29 min before peak** (precision threshold: lead before flare onset computed on re-run) |
+| Operational false-alarm rate | **0.31 false alarms/day** at precision operating point (25% episode precision) |
+| vs. persistence baseline (same horizon) | Ensemble TSS **0.541** vs persistence TSS **0.121** — **4.5× better** than the natural baseline |
+| vs. climatological baseline | Ensemble TSS **0.541** vs climo TSS **0.000** — genuine skill confirmed |
 
 > **Honesty first.** Forecasting is evaluated with in-flare samples *excluded*, so
 > the model is graded on genuine pre-onset prediction — not on detecting flares
 > already in progress. This is rarer than most flare-forecast write-ups and is what
 > makes the numbers trustworthy. See [The science](#the-science--why-soft--hard).
+
+### Baseline comparison (same test set, same 30-min M+ horizon)
+
+| Model | TSS | AUC |
+|---|---|---|
+| **TEJAS ensemble** (TCN + LightGBM, this work) | **0.541** | **0.847** |
+| TEJAS multiclass M+ (LightGBM only) | 0.435 | 0.797 |
+| Persistence baseline (M+ occurred in last 30 min?) | 0.121 | 0.561 |
+| Climatological baseline (constant base rate) | 0.000 | 0.500 |
+
+The ensemble is **4.5× better than persistence** at the identical horizon and on the identical test set. Run `python main.py benchmark` to reproduce.
+
+> **Literature context (different tasks — for calibration only):** Published 24-hour magnetogram-based forecasters achieve TSS ≈ 0.39 (NOAA SWPC, Crown 2012) to TSS ≈ 0.80 (DeFN CNN, Nishizuka 2018). Our 30-min X-ray system operates at a shorter horizon (easier problem) but with radiative data only, not the photospheric magnetic field (harder problem at long horizons). The 4.5× gain over persistence is the fair within-task comparison.
 
 ---
 
@@ -110,6 +125,7 @@ pip install -r requirements.txt
 
 python main.py run              # nowcast + fusion + forecast + dashboard export
 python main.py ensemble        # train the TCN + LightGBM forecasting ensemble
+python main.py benchmark       # persistence + climatological baseline comparison
 python main.py web             # serve the live command center (http://localhost:8531)
 ```
 

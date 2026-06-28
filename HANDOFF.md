@@ -188,6 +188,45 @@ User shared the ISRO livestream brief + reference slides. Two real gaps surfaced
 
 ---
 
+## 15. Critical-flaw fixes (2026-06-26, pre-PPT session)
+
+Full red-team + premortem analysis identified six technical flaws. All fixed:
+
+1. **Benchmark comparison (BIGGEST gap):** `tools/benchmark.py` + `eval/benchmark.json`
+   computes persistence (TSS 0.121) and climatological (TSS 0.000) baselines on the
+   exact same test set. Ensemble wins 4.5× over persistence. `python main.py benchmark`.
+   Also added literature context table (Crown 2012, Bobra 2015, Nishizuka 2018, Leka 2019)
+   with explicit caveat that they use different horizons/inputs.
+
+2. **Lead-before-onset metric:** `forecast.lead_times()` now accepts `starts` (flare
+   start times) and computes `median_lead_to_onset_min` + `pct_alerts_before_onset`
+   alongside the existing lead-to-peak. Ensemble reports lead at BOTH operating points
+   (recall_max AND precision, previously only recall_max). Re-run `main.py ensemble`.
+
+3. **Bootstrap 95% CI on AUC:** `models.auc_ci()` added. `evaluate.py` now prints
+   `[lo, hi]` for all classes. Critical finding: X+ CI is [0.611, 0.719] — the 0.665
+   point estimate is unreliable on ~14 test events. Always show the CI in the PPT.
+
+4. **QPP literature context:** `qpp.py` report now includes `literature_context` with
+   expected 50-80% rate (Nakariakov 2009, Zimovets 2021), binning limitation explanation,
+   and correct framing: "we detect long-period (≥30s) QPPs only." Re-run `main.py qpp`.
+
+5. **Operating point reordering:** `webexport.py` now surfaces the PRECISION op (0.31
+   FA/day, 25% episode precision) as the PRIMARY headline (`precisionOp`), with
+   recall_max (8.23 FA/day) as secondary (`recallOp`). TCN calibration gain also exposed.
+
+6. **Updated evaluate.py:** Now prints CI bands, full ensemble section (both op points,
+   TCN gain), AND the benchmark comparison table in one `python main.py evaluate` call.
+   This is the single command to show judges if they want to verify numbers.
+
+**What to do next:**
+- Re-run `python main.py ensemble` to populate `lead_time_precision_op` and
+  `median_lead_to_onset_min` in the ensemble_metrics JSON (takes ~20 min).
+- Run `python main.py benchmark` (fast, already done — eval/benchmark.json committed).
+- Then re-run `python main.py web` to refresh the dashboard with updated data.
+
+---
+
 ## 12. Open items / next-session TODO
 
 1. **Move repo out of OneDrive** → `C:/Users/Rover/GitHub/TEJAS` (manual, after closing Claude;

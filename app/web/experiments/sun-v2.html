@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TEJAS · Experiment: Procedural Sun (sun-v2)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  .label {
+    position: fixed; left: 24px; bottom: 22px;
+    font: 600 12px/1.5 "Segoe UI", system-ui, sans-serif;
+    letter-spacing: 0.24em; color: rgba(255,255,255,0.72);
+    text-transform: uppercase; pointer-events: none; user-select: none;
+  }
+  .label small { display:block; letter-spacing:0.05em; text-transform:none;
+    color: rgba(255,255,255,0.34); font-weight:500; margin-top:4px; }
+  .hint { position: fixed; right: 24px; bottom: 22px;
+    font: 500 11px/1.4 "Segoe UI", system-ui, sans-serif;
+    color: rgba(255,255,255,0.30); pointer-events:none; user-select:none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="label">Quiet Sun<small>sun-v2 · procedural · no textures</small></div>
+<div class="hint">drag to rotate · scroll to zoom</div>
+
+<!-- Three.js r128 + post-processing (CDN, no build step) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/MaskPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+
+  // ---------- renderer ----------
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // perf: cap for weak GPUs
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;   // blackbody dynamic range
+  renderer.toneMappingExposure = 1.1;
+  renderer.setClearColor(0x000000, 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 3.2);
+
+  // ---------- shared GLSL: 3D simplex noise (Ashima) ----------
+  // Position-based 3D noise => seamless on the sphere, no UV poles, no texture.
+  const NOISE = `
+    vec3 mod289(vec3 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 mod289(vec4 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314*r;}
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+      vec3 i  = floor(v + dot(v, C.yyy));
+      vec3 x0 = v - i + dot(i, C.xxx);
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g.xyz, l.zxy);
+      vec3 i2 = max(g.xyz, l.zxy);
+      vec3 x1 = x0 - i1 + C.xxx;
+      vec3 x2 = x0 - i2 + C.yyy;
+      vec3 x3 = x0 - D.yyy;
+      i = mod289(i);
+      vec4 p = permute( permute( permute(
+                 i.z + vec4(0.0, i1.z, i2.z, 1.0))
+               + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+               + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+      float n_ = 0.142857142857;
+      vec3 ns = n_ * D.wyz - D.xzx;
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+      vec4 x_ = floor(j * ns.z);
+      vec4 y_ = floor(j - 7.0 * x_);
+      vec4 x = x_ * ns.x + ns.yyyy;
+      vec4 y = y_ * ns.x + ns.yyyy;
+      vec4 h = 1.0 - abs(x) - abs(y);
+      vec4 b0 = vec4(x.xy, y.xy);
+      vec4 b1 = vec4(x.zw, y.zw);
+      vec4 s0 = floor(b0)*2.0 + 1.0;
+      vec4 s1 = floor(b1)*2.0 + 1.0;
+      vec4 sh = -step(h, vec4(0.0));
+      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+      vec3 p0 = vec3(a0.xy, h.x);
+      vec3 p1 = vec3(a0.zw, h.y);
+      vec3 p2 = vec3(a1.xy, h.z);
+      vec3 p3 = vec3(a1.zw, h.w);
+      vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+      p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m*m;
+      return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    }
+    float fbm(vec3 p){
+      float v = 0.0, a = 0.5;
+      for (int i = 0; i < 4; i++){ v += a*snoise(p); p *= 2.0; a *= 0.5; } // perf: 4 octaves
+      return v;
+    }
+  `;
+
+  // ---------- the star ----------
+  const sunGeo = new THREE.SphereGeometry(1.0, 128, 128);
+  const sunMat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 } },
+    vertexShader: `
+      varying vec3 vPos;     // object-space position (seamless noise domain)
+      varying vec3 vNormalV; // view-space normal (limb darkening + rim)
+      void main(){
+        vPos = position;
+        vNormalV = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: NOISE + `
+      uniform float time;
+      varying vec3 vPos;
+      varying vec3 vNormalV;
+
+      // Red-dominant emissive ramp: gold/white reserved for the hottest peaks only.
+      vec3 ramp(float t){
+        vec3 c0 = vec3(0.16, 0.010, 0.0);   // near-black ember (intergranular lanes)
+        vec3 c1 = vec3(0.45, 0.040, 0.0);   // deep red
+        vec3 c2 = vec3(0.80, 0.200, 0.02);  // orange
+        vec3 c3 = vec3(1.00, 0.450, 0.08);  // bright orange
+        vec3 c4 = vec3(1.00, 0.760, 0.30);  // gold
+        vec3 c5 = vec3(1.00, 0.960, 0.82);  // white hot
+        vec3 c = mix(c0, c1, smoothstep(0.00, 0.35, t));
+        c = mix(c, c2, smoothstep(0.35, 0.58, t));
+        c = mix(c, c3, smoothstep(0.58, 0.78, t));
+        c = mix(c, c4, smoothstep(0.78, 0.92, t));
+        c = mix(c, c5, smoothstep(0.92, 1.00, t));
+        return c;
+      }
+
+      void main(){
+        vec3 p = normalize(vPos);
+        float t = time * 0.06;
+
+        // domain warp from 2 fbm samples (perf: was 3) -> turbulent convective flow
+        float w1 = fbm(p * 2.4 + vec3(0.0, t, 0.0));
+        float w2 = fbm(p * 2.4 + vec3(t, 0.0, 5.2));
+        vec3 warp = vec3(w1, w2, w1 * w2);
+
+        // three spatial scales: big convection, granulation, fast fine "boil"
+        float conv = fbm(p * 4.0  + warp * 0.50 - vec3(t * 0.5));
+        float gran = fbm(p * 13.0 + warp * 0.35 + vec3(t * 1.4));
+        float fine = fbm(p * 28.0 + vec3(t * 2.2));   // bubbling fine detail
+        float n = 0.50 * conv + 0.34 * gran + 0.16 * fine;
+        n = clamp(n * 0.5 + 0.5, 0.0, 1.0);
+        n = pow(n, 1.40);   // crush mids -> red surface + dark lanes, sparse bright cells
+
+        // discrete active-region faculae (rare, bright, bloom-catching)
+        float ar = smoothstep(0.74, 0.97, fbm(p * 2.1 + vec3(t * 0.3)));
+        n = mix(n, min(1.0, n + 0.55), ar * 0.85);
+
+        vec3 col = ramp(n);
+
+        // limb darkening + limb reddening
+        float ndv = max(dot(normalize(vNormalV), vec3(0.0, 0.0, 1.0)), 0.0);
+        float limb = pow(ndv, 0.5);
+        col *= mix(0.26, 1.15, limb);
+        col = mix(col * vec3(1.0, 0.50, 0.26), col, limb);
+
+        // warm chromosphere rim highlight (sells the spherical edge, feeds bloom)
+        float rim = pow(1.0 - ndv, 4.0);
+        col += vec3(1.0, 0.52, 0.20) * rim * 0.7;
+
+        // emissive lift -> hottest regions drive the bloom
+        col *= 1.3;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+  const sun = new THREE.Mesh(sunGeo, sunMat);
+  scene.add(sun);
+
+  // ---------- corona (thin, filamentary, additive fresnel shells) ----------
+  function makeCorona(radius, power, alpha, inner, outer) {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        time:   { value: 0 },
+        power:  { value: power },
+        alpha:  { value: alpha },
+        cInner: { value: new THREE.Color(inner[0], inner[1], inner[2]) },
+        cOuter: { value: new THREE.Color(outer[0], outer[1], outer[2]) },
+      },
+      vertexShader: `
+        varying vec3 vPos; varying vec3 vNormalV;
+        void main(){
+          vPos = position;
+          vNormalV = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: NOISE + `
+        uniform float time; uniform float power; uniform float alpha;
+        uniform vec3 cInner; uniform vec3 cOuter;
+        varying vec3 vPos; varying vec3 vNormalV;
+        void main(){
+          float ndv = max(dot(normalize(vNormalV), vec3(0.0,0.0,1.0)), 0.0);
+          float fres = pow(1.0 - ndv, power);
+          vec3 np = normalize(vPos);
+          // scrolling filaments (perf: single fbm) -> wispy plasma, not a solid ring
+          float fil = fbm(np * 8.0 + vec3(time * 0.15, time * 0.10, time * 0.05));
+          float f = fres * (0.50 + 0.80 * fil);
+          vec3 col = mix(cOuter, cInner, fres);
+          gl_FragColor = vec4(col, clamp(f, 0.0, 1.0) * alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 64), mat);
+    scene.add(mesh);
+    return { mesh, mat };
+  }
+  // warm throughout (no dark brown), thin and translucent, two depths of glow
+  // (perf: dropped from 3 shells; outer radius trimmed 2.0 -> 1.7 to cut overdraw)
+  const coronaInner = makeCorona(1.14, 3.5, 0.55, [1.0, 0.72, 0.34], [1.0, 0.42, 0.10]);
+  const coronaOuter = makeCorona(1.70, 2.0, 0.22, [1.0, 0.50, 0.20], [0.85, 0.26, 0.06]);
+
+  // ---------- starfield (denser, subordinate context) ----------
+  (function stars() {
+    const N = 3500;
+    const pos = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      const r = 30 + Math.random() * 40;
+      const u = Math.random() * 2 - 1;
+      const th = Math.random() * Math.PI * 2;
+      const s = Math.sqrt(1 - u * u);
+      pos[i*3]   = r * s * Math.cos(th);
+      pos[i*3+1] = r * u;
+      pos[i*3+2] = r * s * Math.sin(th);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const m = new THREE.PointsMaterial({
+      color: 0xffffff, size: 0.085, sizeAttenuation: true,
+      transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    scene.add(new THREE.Points(g, m));
+  })();
+
+  // ---------- post-processing: bloom (the single biggest quality lever) ----------
+  const composer = new THREE.EffectComposer(renderer);
+  composer.addPass(new THREE.RenderPass(scene, camera));
+  const bloom = new THREE.UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    1.05,  // strength
+    0.45,  // radius
+    0.60   // threshold (generous -> only the incandescent core blooms)
+  );
+  composer.addPass(bloom);
+
+  // ---------- interaction: drag rotate + scroll zoom ----------
+  let dragging = false, lx = 0, ly = 0, autorot = true, lastUp = 0;
+  canvas.addEventListener('mousedown', e => { dragging = true; lx = e.clientX; ly = e.clientY; });
+  window.addEventListener('mouseup', () => { if (dragging) { dragging = false; lastUp = performance.now(); } });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    sun.rotation.y += (e.clientX - lx) * 0.005;
+    sun.rotation.x += (e.clientY - ly) * 0.005;
+    sun.rotation.x = Math.max(-1.2, Math.min(1.2, sun.rotation.x));
+    lx = e.clientX; ly = e.clientY;
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    camera.position.z = Math.max(1.8, Math.min(7, camera.position.z + e.deltaY * 0.002));
+  }, { passive: false });
+
+  // ---------- resize ----------
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    composer.setSize(w, h);
+    bloom.resolution.set(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  });
+
+  // ---------- loop ----------
+  const clock = new THREE.Clock();
+  // verification hook: lets a headless/hidden preview force one frame (rAF is throttled when hidden)
+  window.__render = function (tOverride) {
+    const tt = (typeof tOverride === 'number') ? tOverride : clock.getElapsedTime();
+    sunMat.uniforms.time.value = tt;
+    coronaInner.mat.uniforms.time.value = tt;
+    coronaOuter.mat.uniforms.time.value = tt;
+    coronaInner.mesh.rotation.copy(sun.rotation);
+    coronaOuter.mesh.rotation.copy(sun.rotation);
+    composer.render();
+  };
+  (function animate() {
+    requestAnimationFrame(animate);
+    const tt = clock.getElapsedTime();
+    sunMat.uniforms.time.value = tt;
+    coronaInner.mat.uniforms.time.value = tt;
+    coronaOuter.mat.uniforms.time.value = tt;
+
+    if (autorot && !dragging && performance.now() - lastUp > 2000) {
+      sun.rotation.y += 0.0012;
+    }
+    coronaInner.mesh.rotation.copy(sun.rotation);
+    coronaOuter.mesh.rotation.copy(sun.rotation);
+
+    composer.render();
+  })();
+})();
+</script>
+</body>
+</html>

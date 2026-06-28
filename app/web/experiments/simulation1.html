@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SOLAR INTELLIGENCE · REAL TIME SIMULATION</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg-color: #030303;
+    --panel-bg: rgba(9, 9, 9, 0.4);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --text-main: #f0f0f0;
+    --text-dim: #999999;
+    --text-highlight: #4a90e2;
+    --live-green: #2ecc71;
+    --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --font-sans: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+  }
+
+  html, body {
+    margin: 0; padding: 0; width: 100vw; height: 100vh;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+  
+  *, *::before, *::after { box-sizing: inherit; }
+
+  /* Top Header */
+  .header {
+    height: 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 16px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+    z-index: 2;
+    background: var(--bg-color);
+  }
+  .header-left {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .header-right {
+    display: flex; gap: 16px; align-items: center;
+    font-family: var(--font-mono);
+  }
+  .live-dot {
+    display: inline-block; width: 6px; height: 6px;
+    background-color: var(--live-green);
+    border-radius: 50%;
+    margin-right: 6px;
+    box-shadow: 0 0 6px var(--live-green);
+  }
+  .live-text { color: var(--live-green); font-weight: bold; }
+
+  /* Main Grid */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1.25fr;
+    gap: 8px;
+    padding: 8px;
+    height: calc(100vh - 36px);
+    position: relative;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  /* Panels */
+  .panel {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+  }
+
+  .panel-content {
+    position: relative; z-index: 1; padding: 16px; height: 100%;
+    display: flex; flex-direction: column; justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .panel-header {
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .panel-number {
+    font-size: 20px; font-weight: 300; color: #fff;
+  }
+  .panel-title {
+    display: flex; flex-direction: column;
+  }
+  .panel-title strong {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .panel-title span {
+    font-size: 11px; color: var(--text-dim); margin-top: 2px;
+  }
+
+  .panel-footer {
+    font-family: var(--font-mono);
+    font-size: 10px; color: var(--text-dim);
+  }
+
+  /* Metric Widgets */
+  .widget {
+    background: rgba(0, 0, 0, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px);
+    border-radius: 4px;
+    padding: 12px;
+    position: absolute;
+    pointer-events: auto;
+  }
+  .widget-title {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim);
+    margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;
+  }
+  .widget-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--font-mono); font-size: 11px; margin-bottom: 6px;
+  }
+  .widget-row:last-child { margin-bottom: 0; }
+  .widget-label { color: var(--text-dim); }
+  .widget-val { color: #fff; }
+
+  /* Specific Panel Placements */
+  .panel-3 .widget { top: 50%; right: 16px; transform: translateY(-50%); width: 160px; }
+  .panel-4 .widget { bottom: 16px; right: 16px; width: 170px; }
+  .panel-5 .widget { bottom: 16px; right: 16px; width: 150px; }
+  .panel-6 .widget { bottom: 16px; right: 16px; width: 150px; }
+  .panel-7 .widget { bottom: 60px; left: 16px; width: 160px; } /* Above timeline */
+
+  /* Panel 7 specific spans */
+  .panel-7 {
+    grid-column: 1 / 3;
+    grid-row: 3 / 4;
+  }
+
+  /* Timeline */
+  .timeline-container {
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 50px;
+    background: rgba(0,0,0,0.5); border-top: 1px solid rgba(255,255,255,0.05);
+    padding: 0 20px; display: flex; align-items: center;
+    pointer-events: auto;
+  }
+  .timeline-track {
+    width: 100%; height: 2px; background: rgba(255,255,255,0.2); position: relative;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .tl-point {
+    position: absolute; width: 6px; height: 6px; border-radius: 50%;
+    transform: translate(-50%, 0); top: -2px;
+  }
+  .tl-point.orange { background: #f39c12; box-shadow: 0 0 8px #f39c12; }
+  .tl-point.purple { background: #9b59b6; box-shadow: 0 0 8px #9b59b6; }
+  .tl-point.green { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+  .tl-label {
+    position: absolute; top: -20px; transform: translateX(-50%);
+    font-size: 9px; text-transform: uppercase; color: var(--text-dim); white-space: nowrap;
+  }
+  .tl-time {
+    position: absolute; top: 10px; transform: translateX(-50%);
+    font-family: var(--font-mono); font-size: 10px; color: var(--text-dim);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    grid-column: 3 / 4;
+    grid-row: 3 / 4;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow-y: auto;
+    pointer-events: auto;
+    backdrop-filter: blur(8px);
+  }
+
+  /* Controls Section */
+  .control-group {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .control-title {
+    font-size: 10px; text-transform: uppercase; color: var(--text-dim); letter-spacing: 0.1em;
+  }
+  .toggle-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px;
+  }
+  .eye-icon {
+    width: 14px; height: 14px; opacity: 0.5; cursor: pointer;
+  }
+  .eye-icon:hover { opacity: 1.0; }
+  .eye-icon.active { opacity: 1.0; color: #fff; }
+  .eye-icon svg { width: 100%; height: 100%; fill: currentColor; }
+
+  /* Time Controls */
+  .time-controls {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px;
+  }
+  .transport-buttons {
+    display: flex; gap: 12px; justify-content: center; align-items: center;
+  }
+  .transport-btn {
+    background: none; border: none; color: #fff; cursor: pointer; opacity: 0.7;
+  }
+  .transport-btn:hover { opacity: 1; }
+  .transport-btn svg { width: 14px; height: 14px; fill: currentColor; }
+  .slider-row {
+    display: flex; align-items: center; gap: 8px; font-size: 11px; font-family: var(--font-mono); color: var(--text-dim);
+  }
+  .speed-slider { flex: 1; accent-color: #fff; }
+
+  /* Event Summary */
+  .summary-box {
+    display: flex; flex-direction: column; gap: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px;
+  }
+  .summary-header {
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .badge-ongoing {
+    background: rgba(46, 204, 113, 0.1); color: var(--live-green); border: 1px solid rgba(46, 204, 113, 0.3);
+    padding: 2px 6px; border-radius: 4px; font-size: 9px; text-transform: uppercase; font-weight: bold;
+  }
+  .flare-class { font-size: 24px; font-weight: 500; color: #f39c12; }
+  .flare-desc { font-size: 11px; color: var(--text-dim); }
+  .stat-row { display: flex; justify-content: space-between; font-size: 11px; }
+  .stat-val { font-family: var(--font-mono); color: #fff; }
+
+  /* Forecast & System */
+  .sys-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 4px;}
+  .sys-label { color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .sys-check { width: 8px; height: 8px; background: var(--live-green); border-radius: 50%; display: inline-block; }
+  .sys-status { color: var(--live-green); font-family: var(--font-mono); }
+  
+</style>
+</head>
+<body>
+
+  <!-- Single Master Stage -->
+  <canvas id="master-stage" style="position: fixed; inset: 0; z-index: 0; pointer-events: none; width: 100vw; height: 100vh;"></canvas>
+
+  <!-- Top Header -->
+  <header class="header">
+    <div class="header-left">
+      <span style="color: #fff; font-weight: 500;">SOLAR INTELLIGENCE</span>
+      <span>·</span>
+      <span>REAL TIME SIMULATION</span>
+    </div>
+    <div class="header-right">
+      <span>DATA: ADITYA-L1 (SoLEXS + HEL1OS)</span>
+      <span class="live-text"><i class="live-dot"></i>LIVE</span>
+      <span id="utc-clock">18:20:45 UTC</span>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <main class="dashboard-grid">
+    
+    <!-- Panel 1: Quiet Sun -->
+    <div class="panel" id="panel-1">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">1</div>
+          <div class="panel-title">
+            <strong>QUIET SUN</strong>
+            <span>Before the eruption</span>
+          </div>
+        </div>
+        <div class="panel-footer">2026-06-15 12:45 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 2: Magnetic Build Up -->
+    <div class="panel" id="panel-2">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">2</div>
+          <div class="panel-title">
+            <strong>MAGNETIC BUILD UP</strong>
+            <span>Active region intensifies</span>
+          </div>
+        </div>
+        <div class="panel-footer">2026-06-15 13:12 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 3: Solar Flare -->
+    <div class="panel panel-3" id="panel-3">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">3</div>
+          <div class="panel-title">
+            <strong>SOLAR FLARE</strong>
+            <span>Energy release</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">FLARE DETAILS</div>
+          <div class="widget-row"><span class="widget-label">Class</span><span class="widget-val">M2.3</span></div>
+          <div class="widget-row"><span class="widget-label">Peak Time</span><span class="widget-val">13:21 UTC</span></div>
+          <div class="widget-row"><span class="widget-label">Duration</span><span class="widget-val">4.3 min</span></div>
+          <div class="widget-row"><span class="widget-label">Location</span><span class="widget-val">AR 13664</span></div>
+        </div>
+        <div class="panel-footer">2026-06-15 13:21 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 4: CME Launch -->
+    <div class="panel panel-4" id="panel-4">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">4</div>
+          <div class="panel-title">
+            <strong>CME LAUNCH</strong>
+            <span>Mass ejection from corona</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">CME PARAMETERS</div>
+          <div class="widget-row"><span class="widget-label">Speed</span><span class="widget-val">1857 km/s</span></div>
+          <div class="widget-row"><span class="widget-label">Direction</span><span class="widget-val">18° W of Earth</span></div>
+          <div class="widget-row"><span class="widget-label">Width</span><span class="widget-val">62°</span></div>
+          <div class="widget-row"><span class="widget-label">Density</span><span class="widget-val">8.7 p/cc</span></div>
+        </div>
+        <div class="panel-footer">2026-06-15 13:24 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 5: CME Propagation -->
+    <div class="panel panel-5" id="panel-5">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">5</div>
+          <div class="panel-title">
+            <strong>CME PROPAGATION</strong>
+            <span>Traveling through interplanetary space</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">ESTIMATED ARRIVAL</div>
+          <div class="widget-row" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+            <span class="widget-label">Time</span>
+            <span class="widget-val">16 Jun 06:45 UTC</span>
+            <span class="widget-label" style="font-size: 9px;">(~17h 15m)</span>
+          </div>
+          <div class="widget-row" style="margin-top: 8px;">
+            <span class="widget-label">Confidence</span>
+            <span class="widget-val">89%</span>
+          </div>
+        </div>
+        <div class="panel-footer">2026-06-15 13:30 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 6: Magnetospheric Impact -->
+    <div class="panel panel-6" id="panel-6">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">6</div>
+          <div class="panel-title">
+            <strong>MAGNETOSPHERIC IMPACT</strong>
+            <span>Interaction with Earth's magnetic field</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">IMPACT METRICS</div>
+          <div class="widget-row"><span class="widget-label">Kp Index</span><span class="widget-val">7.1</span></div>
+          <div class="widget-row"><span class="widget-label">Dst Index</span><span class="widget-val">-135 nT</span></div>
+          <div class="widget-row"><span class="widget-label">Bz</span><span class="widget-val">-18.6 nT</span></div>
+          <div class="widget-row"><span class="widget-label">Vsw</span><span class="widget-val">782 km/s</span></div>
+        </div>
+        <div class="panel-footer">2026-06-16 06:45 UTC</div>
+      </div>
+    </div>
+
+    <!-- Panel 7: Auroral Response -->
+    <div class="panel panel-7" id="panel-7">
+      <div class="panel-content">
+        <div class="panel-header">
+          <div class="panel-number">7</div>
+          <div class="panel-title">
+            <strong>AURORAL RESPONSE</strong>
+            <span>Energy deposition in polar regions</span>
+          </div>
+        </div>
+        <div class="widget">
+          <div class="widget-title">AURORA VIEW</div>
+          <div class="widget-row"><span class="widget-label">Hemisphere</span><span class="widget-val">North</span></div>
+          <div class="widget-row"><span class="widget-label">Power</span><span class="widget-val">High</span></div>
+          <div class="widget-row"><span class="widget-label">Oval Radius</span><span class="widget-val">18.7°</span></div>
+          <div class="widget-row"><span class="widget-label">Brightness</span><span class="widget-val">78%</span></div>
+        </div>
+        
+        <!-- Timeline -->
+        <div class="timeline-container">
+          <span style="font-size: 9px; color: var(--text-dim); text-transform: uppercase; margin-right: 16px;">TIMELINE</span>
+          <div class="timeline-track">
+            <!-- Data Points -->
+            <div class="tl-point orange" style="left: 10%;">
+              <div class="tl-label">QUIET SUN</div>
+            </div>
+            <div class="tl-point orange" style="left: 25%;">
+              <div class="tl-label">FLARE</div>
+            </div>
+            <div class="tl-point orange" style="left: 35%;">
+              <div class="tl-label">CME LAUNCH</div>
+            </div>
+            
+            <div class="tl-point purple" style="left: 65%;">
+              <div class="tl-label">IMPACT</div>
+            </div>
+            <div class="tl-point green" style="left: 78%;">
+              <div class="tl-label">AURORA</div>
+            </div>
+            
+            <!-- Time Markers -->
+            <div class="tl-time" style="left: 0%;">12:00</div>
+            <div class="tl-time" style="left: 20%;">13:00</div>
+            <div class="tl-time" style="left: 40%;">14:00</div>
+            <div class="tl-time" style="left: 60%;">15:00</div>
+            <div class="tl-time" style="left: 80%;">16:00</div>
+            <div class="tl-time" style="left: 100%;">17:00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      
+      <!-- 3D View Controls -->
+      <div class="control-group" style="margin-bottom: 8px;">
+        <div class="control-title" style="margin-bottom: 4px;">3D VIEW CONTROLS</div>
+        
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Sun</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Earth</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> CME Front</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Magnetic Field</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Solar Wind</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></span>
+        </div>
+        <div class="toggle-row">
+          <span style="color: #fff;"><span style="color:var(--text-dim); margin-right:6px;">◉</span> Aurora</span>
+          <span class="eye-icon active"><svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg></span>
+        </div>
+      </div>
+
+      <!-- Time Controls -->
+      <div class="time-controls">
+        <div class="control-title">TIME CONTROLS</div>
+        <div class="transport-buttons">
+          <button class="transport-btn"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+          <button class="transport-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+          <button class="transport-btn"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+        </div>
+        <div class="slider-row">
+          <span>Speed</span>
+          <input type="range" class="speed-slider" min="0" max="2" value="1" step="0.1">
+          <span>1.0x</span>
+        </div>
+      </div>
+
+      <!-- Event Summary -->
+      <div class="summary-box">
+        <div class="summary-header">
+          <div class="control-title">EVENT SUMMARY</div>
+          <div class="badge-ongoing">ONGOING</div>
+        </div>
+        <div>
+          <span class="flare-class">M2.3</span>
+          <span class="flare-desc">Moderate Flare</span>
+        </div>
+        <div class="stat-row"><span class="widget-label">Event ID</span><span class="stat-val">SLX-6583</span></div>
+        <div class="stat-row"><span class="widget-label">Start Time</span><span class="stat-val">2026-06-15 13:21 UTC</span></div>
+        <div class="stat-row"><span class="widget-label">Max Time</span><span class="stat-val">2026-06-15 13:22 UTC</span></div>
+        <div class="stat-row"><span class="widget-label">Duration</span><span class="stat-val">4.3 min</span></div>
+      </div>
+
+      <!-- Forecast Status -->
+      <div class="summary-box">
+        <div class="summary-header">
+          <div class="control-title">FORECAST STATUS</div>
+          <span style="font-size: 9px; color: var(--text-dim);">Updated 2 min ago</span>
+        </div>
+        <div class="stat-row"><span class="widget-label">Arrival</span><span class="stat-val">16 Jun 06:45 UTC</span></div>
+        <div class="stat-row"><span class="widget-label">Probability</span><span class="stat-val">89%</span></div>
+        <div class="stat-row"><span class="widget-label">Impact</span><span class="stat-val">Strong</span></div>
+        <div class="stat-row"><span class="widget-label">Range</span><span class="stat-val">Kp 6 - Kp 8</span></div>
+      </div>
+
+      <!-- System Health -->
+      <div class="control-group">
+        <div class="control-title" style="margin-bottom: 4px;">SYSTEM HEALTH</div>
+        <div class="sys-row">
+          <span class="sys-label"><i class="sys-check"></i> Aditya-L1 Link</span>
+          <span class="sys-status">Nominal</span>
+        </div>
+        <div class="sys-row">
+          <span class="sys-label"><i class="sys-check"></i> SoLEXS</span>
+          <span class="sys-status">Nominal</span>
+        </div>
+        <div class="sys-row">
+          <span class="sys-label"><i class="sys-check"></i> HEL1OS</span>
+          <span class="sys-status">Nominal</span>
+        </div>
+        <div class="sys-row">
+          <span class="sys-label"><i class="sys-check"></i> Processing</span>
+          <span class="sys-status">Nominal</span>
+        </div>
+      </div>
+
+    </aside>
+  </main>
+
+  <script>
+    // Live clock update
+    setInterval(() => {
+      const d = new Date();
+      const h = String(d.getUTCHours()).padStart(2, '0');
+      const m = String(d.getUTCMinutes()).padStart(2, '0');
+      const s = String(d.getUTCSeconds()).padStart(2, '0');
+      document.getElementById('utc-clock').textContent = `${h}:${m}:${s} UTC`;
+    }, 1000);
+  </script>
+
+  <!-- SCISSOR PIPELINE IMPLEMENTATION -->
+  <script>
+    const canvas = document.getElementById('master-stage');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setScissorTest(true);
+
+    // ==========================================
+    // 3 MASTER SCENES (Placeholders)
+    // ==========================================
+
+    // SCENE 1: SUN
+    const sceneSun = new THREE.Scene();
+    const sunGeo = new THREE.SphereGeometry(2, 16, 16);
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xff8800, wireframe: true });
+    const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    sceneSun.add(sunMesh);
+
+    // SCENE 2: VOID
+    const sceneVoid = new THREE.Scene();
+    const voidGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-5,0,0), new THREE.Vector3(5,0,0)]);
+    const voidMat = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+    const voidLine = new THREE.Line(voidGeo, voidMat);
+    sceneVoid.add(voidLine);
+
+    // SCENE 3: EARTH
+    const sceneEarth = new THREE.Scene();
+    const earthGeo = new THREE.SphereGeometry(1, 16, 16);
+    const earthMat = new THREE.MeshBasicMaterial({ color: 0x0044ff, wireframe: false });
+    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+    sceneEarth.add(earthMesh);
+
+    // ==========================================
+    // 7 VIEWPORT CAMERAS
+    // ==========================================
+
+    const cam1 = new THREE.PerspectiveCamera(45, 1, 0.1, 100); 
+    cam1.position.set(0, 0, 8); // Quiet Sun
+    
+    const cam2 = new THREE.PerspectiveCamera(45, 1, 0.1, 100); 
+    cam2.position.set(1.5, 1.5, 3); cam2.lookAt(1.5, 1.5, 0); // Mag Build Up
+    
+    const cam3 = new THREE.PerspectiveCamera(45, 1, 0.1, 100); 
+    cam3.position.set(1.5, 1.5, 2.5); cam3.lookAt(1.5, 1.5, 0); // Flare
+    
+    const cam4 = new THREE.PerspectiveCamera(45, 1, 0.1, 100); 
+    cam4.position.set(2.5, 0, 4); cam4.lookAt(2, 0, 0); // CME Launch
+    
+    const cam5 = new THREE.PerspectiveCamera(45, 1, 0.1, 100); 
+    cam5.position.set(0, 5, 10); cam5.lookAt(0,0,0); // Propagation
+    
+    const cam6 = new THREE.PerspectiveCamera(45, 1, 0.1, 100); 
+    cam6.position.set(-3, 0, 3); cam6.lookAt(0,0,0); // Mag Impact
+    
+    const cam7 = new THREE.PerspectiveCamera(45, 1, 0.1, 100); 
+    cam7.position.set(0, 4, 1); cam7.lookAt(0,0,0); // Aurora
+
+    // ==========================================
+    // PANEL MAPPING
+    // ==========================================
+    const PANELS = [
+      { id: 'panel-1', scene: sceneSun, camera: cam1 },
+      { id: 'panel-2', scene: sceneSun, camera: cam2 },
+      { id: 'panel-3', scene: sceneSun, camera: cam3 },
+      { id: 'panel-4', scene: sceneSun, camera: cam4 },
+      { id: 'panel-5', scene: sceneVoid, camera: cam5 },
+      { id: 'panel-6', scene: sceneEarth, camera: cam6 },
+      { id: 'panel-7', scene: sceneEarth, camera: cam7 },
+    ];
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ==========================================
+    // RENDER LOOP
+    // ==========================================
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Rotate meshes slightly for placeholder sanity check
+      sunMesh.rotation.y += 0.005;
+      sunMesh.rotation.x += 0.002;
+      earthMesh.rotation.y += 0.01;
+
+      // The Scissor Pipeline
+      PANELS.forEach(panel => {
+        const element = document.getElementById(panel.id);
+        if (!element) return;
+        
+        const rect = element.getBoundingClientRect();
+        
+        // Convert DOM coordinates to WebGL bottom-up coordinates
+        const width = rect.right - rect.left;
+        const height = rect.bottom - rect.top;
+        const left = rect.left;
+        const bottom = renderer.domElement.clientHeight - rect.bottom;
+
+        panel.camera.aspect = width / height;
+        panel.camera.updateProjectionMatrix();
+
+        renderer.setViewport(left, bottom, width, height);
+        renderer.setScissor(left, bottom, width, height);
+
+        // Render the specific scene & camera for this box
+        renderer.render(panel.scene, panel.camera);
+      });
+    }
+    
+    animate();
+  </script>
+</body>
+</html>

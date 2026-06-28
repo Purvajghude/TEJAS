@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SOLAR INTELLIGENCE · CME Propagation (Panel 5)</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000000; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  .telemetry {
+    font-family: "Space Grotesk", "SFMono-Regular", ui-monospace, monospace;
+    font-weight: 400; text-transform: uppercase; letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.85); pointer-events: none; user-select: none;
+    position: absolute; right: 28px; top: 28px; text-align: right; z-index: 10;
+    font-size: 11px; line-height: 1.8; text-shadow: 0 0 6px rgba(0,0,0,0.9);
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="telemetry">
+  TRANSIT: 1 AU INTERPLANETARY MEDIUM<br>
+  V_CME: 1857 km/s<br>
+  TARGET: ADITYA-L1 / EARTH MAGNETOSPHERE
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Globals & Noise Shader ───────────────────────────────────────────────────
+  const NOISE_GLSL = `
+    float n_fade(float t){ return t*t*t*(t*(t*6.0-15.0)+10.0); }
+    vec4  n_perm(vec4 x){ return mod(((x*34.0)+1.0)*x, 289.0); }
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      vec3 i  = floor(v + dot(v, C.yyy));
+      vec3 x0 = v - i + dot(i, C.xxx);
+      vec3 g  = step(x0.yzx, x0.xyz);
+      vec3 l  = 1.0 - g;
+      vec3 i1 = min(g.xyz, l.zxy);
+      vec3 i2 = max(g.xyz, l.zxy);
+      vec3 x1 = x0 - i1 + C.xxx;
+      vec3 x2 = x0 - i2 + C.yyy;
+      vec3 x3 = x0 - 0.5;
+      i = mod(i, 289.0);
+      vec4 p = n_perm(n_perm(n_perm(
+                 i.z + vec4(0.0, i1.z, i2.z, 1.0))
+               + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+               + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+      float n_ = 0.142857142857;
+      vec3 ns  = n_ * vec3(2,1.5,1) - vec3(1,0,0.5);
+      vec4 j   = p - 49.0 * floor(p * (ns.z * ns.z));
+      vec4 x_  = floor(j * ns.z);
+      vec4 y_  = floor(j - 7.0 * x_);
+      vec4 xs  = x_ * ns.x + ns.yyyy;
+      vec4 ys  = y_ * ns.x + ns.yyyy;
+      vec4 h   = 1.0 - abs(xs) - abs(ys);
+      vec4 b0  = vec4(xs.xy, ys.xy);
+      vec4 b1  = vec4(xs.zw, ys.zw);
+      vec4 s0  = floor(b0) * 2.0 + 1.0;
+      vec4 s1  = floor(b1) * 2.0 + 1.0;
+      vec4 sh  = -step(h, vec4(0.0));
+      vec4 a0  = b0.xzyw + s0.xzyw * sh.xxyy;
+      vec4 a1  = b1.xzyw + s1.xzyw * sh.zzww;
+      vec3 p0  = vec3(a0.xy, h.x);
+      vec3 p1  = vec3(a0.zw, h.y);
+      vec3 p2  = vec3(a1.xy, h.z);
+      vec3 p3  = vec3(a1.zw, h.w);
+      vec4 nm  = 1.79284291400159 - 0.85373472095314 *
+        vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3));
+      p0 *= nm.x; p1 *= nm.y; p2 *= nm.z; p3 *= nm.w;
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m * m;
+      return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    }
+  `;
+
+  // ── Scene Setup ──────────────────────────────────────────────────────────────
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x000000, 1.0);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+
+  const scene = new THREE.Scene();
+
+  const camera = new THREE.PerspectiveCamera(28, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 12, 42);
+  camera.lookAt(0, 0, 0);
+
+  // ── Proxy Sun (Left Anchor) ──────────────────────────────────────────────────
+  const sunRadius = 2.8;
+  const sunGeo = new THREE.SphereGeometry(sunRadius, 64, 64);
+  const sunMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      varying vec3 vPos;
+      void main(){
+        vPos = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      ${NOISE_GLSL}
+      uniform float uTime;
+      varying vec3 vPos;
+      void main(){
+        float n = snoise(vPos * 2.5 + uTime * 0.5) * 0.5 + 0.5;
+        vec3 crimson = vec3(0.8, 0.0, 0.05);
+        vec3 gold = vec3(1.0, 0.9, 0.5);
+        vec3 col = mix(crimson, gold, smoothstep(0.3, 0.7, n));
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+  const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+  sunMesh.position.set(-18.0, 0, 0);
+  scene.add(sunMesh);
+
+  // ── Proxy Sun Glow (Inner Corona) ───────────────────────────────────────────
+  const coronaMat = new THREE.MeshBasicMaterial({
+    color: 0xff3300, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const coronaMesh = new THREE.Mesh(sunGeo, coronaMat);
+  coronaMesh.scale.set(1.03, 1.03, 1.03);
+  sunMesh.add(coronaMesh);
+
+  // ── Proxy Earth (Right Anchor) ───────────────────────────────────────────────
+  const earthRadius = 0.42;
+  const earthGeo = new THREE.SphereGeometry(earthRadius, 32, 32);
+  const earthMat = new THREE.MeshPhongMaterial({ color: 0x000033, shininess: 10 });
+  const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+  earthMesh.position.set(18.0, 0, 0);
+  scene.add(earthMesh);
+
+  // ── Earth Bow Shock Preview ────────────────────────────────────────────────
+  const shockGeo = new THREE.SphereGeometry(earthRadius * 1.5, 32, 32, 0, Math.PI, 0, Math.PI);
+  const shockMat = new THREE.MeshBasicMaterial({
+    color: 0xaa55ff, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+  });
+  const shockMesh = new THREE.Mesh(shockGeo, shockMat);
+  shockMesh.rotation.y = -Math.PI / 2;
+  earthMesh.add(shockMesh);
+
+  // Directional Light from Sun
+  const dirLight = new THREE.DirectionalLight(0xfff5ea, 2.0);
+  dirLight.position.set(-18.0, 0, 0);
+  dirLight.target = earthMesh;
+  scene.add(dirLight);
+
+  // ── Parker Spiral (Interplanetary Magnetic Field) ────────────────────────────
+  const numSpirals = 25;
+  const ptsPerSpiral = 120;
+  const spiralPos = new Float32Array(numSpirals * ptsPerSpiral * 3);
+  const rAttr = new Float32Array(numSpirals * ptsPerSpiral);
+  const phiAttr = new Float32Array(numSpirals * ptsPerSpiral);
+
+  let idx = 0;
+  for (let i = 0; i < numSpirals; i++) {
+    const phi = (i / numSpirals) * Math.PI * 2;
+    for (let j = 0; j < ptsPerSpiral; j++) {
+      const r = sunRadius + (j / ptsPerSpiral) * 38.0;
+      spiralPos[idx*3] = 0;
+      spiralPos[idx*3+1] = 0;
+      spiralPos[idx*3+2] = 0;
+      rAttr[idx] = r;
+      phiAttr[idx] = phi;
+      idx++;
+    }
+  }
+
+  const spiralGeo = new THREE.BufferGeometry();
+  spiralGeo.setAttribute('position', new THREE.BufferAttribute(spiralPos, 3));
+  spiralGeo.setAttribute('radius', new THREE.BufferAttribute(rAttr, 1));
+  spiralGeo.setAttribute('phi', new THREE.BufferAttribute(phiAttr, 1));
+
+  const spiralMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      attribute float radius;
+      attribute float phi;
+      uniform float uTime;
+      void main() {
+        float theta = radius * 0.25 - uTime * 0.2 + phi;
+        vec3 p = vec3(
+          radius * cos(theta) - 18.0,
+          0.0,
+          radius * sin(theta)
+        );
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }
+    `,
+    fragmentShader: `
+      void main() {
+        gl_FragColor = vec4(0.1, 0.3, 0.6, 0.18);
+      }
+    `,
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  
+  const spiralIdx = [];
+  for (let i = 0; i < numSpirals; i++) {
+    for (let j = 0; j < ptsPerSpiral - 1; j++) {
+      const a = i * ptsPerSpiral + j;
+      spiralIdx.push(a, a + 1);
+    }
+  }
+  spiralGeo.setIndex(spiralIdx);
+  const spiralMesh = new THREE.LineSegments(spiralGeo, spiralMat);
+  scene.add(spiralMesh);
+
+  // ── CME Wavefront (Magnetic Flux Rope) ───────────────────────────────────────
+  const cmeCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-1.0, 0, -5.0),
+    new THREE.Vector3( 0.0, 0, -3.0),
+    new THREE.Vector3( 1.0, 0,  0.0),
+    new THREE.Vector3( 0.0, 0,  3.0),
+    new THREE.Vector3(-1.0, 0,  5.0)
+  ]);
+  const cmeGeo = new THREE.TubeGeometry(cmeCurve, 64, 0.8, 32, false);
+  const cmeMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: { value: 0 },
+      uTransitProgress: { value: 0.0 }
+    },
+    vertexShader: `
+      varying vec3 vN;
+      varying vec3 vPos;
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        // Taper radius to 0 at ends using local normal
+        float taper = sin(uv.x * 3.14159265);
+        vec3 taperedPos = position - normal * (1.0 - taper) * 0.8;
+        
+        vN = normalize(normalMatrix * normal);
+        vPos = (modelMatrix * vec4(taperedPos, 1.0)).xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(taperedPos, 1.0);
+      }
+    `,
+    fragmentShader: `
+      ${NOISE_GLSL}
+      float fbm(vec3 x) {
+        float v = 0.0;
+        float a = 0.5;
+        vec3 shift = vec3(100.0);
+        for (int i = 0; i < 4; ++i) {
+          v += a * snoise(x);
+          x = x * 2.0 + shift;
+          a *= 0.5;
+        }
+        return v;
+      }
+
+      uniform float uTime;
+      uniform float uTransitProgress;
+      varying vec3 vN;
+      varying vec3 vPos;
+      varying vec2 vUv;
+
+      void main() {
+        vec3 normal = normalize(vN);
+
+        float ram = smoothstep(-0.2, 0.8, normal.x);
+
+        float noise = fbm(vec3(vUv.x * 30.0, vUv.y * 4.0, uTime));
+        
+        vec3 crimson = vec3(0.4, 0.02, 0.0);
+        vec3 amber = vec3(1.0, 0.4, 0.05);
+        vec3 yellow = vec3(1.0, 0.9, 0.6);
+
+        vec3 col = mix(crimson, amber, max(0.0, noise + 0.5));
+        col = mix(col, yellow, ram * 0.9 + max(0.0, noise) * 0.1);
+        
+        col += yellow * ram * 2.0; // Ram-Pressure Brightening
+
+        float alphaBase = mix(0.85, 0.15, uTransitProgress);
+
+        float edgeFade = 1.0 - abs(normal.y);
+        float alpha = alphaBase * smoothstep(0.0, 0.3, edgeFade);
+
+        gl_FragColor = vec4(col, alpha);
+      }
+    `,
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide
+  });
+  const cmeMesh = new THREE.Mesh(cmeGeo, cmeMat);
+  scene.add(cmeMesh);
+
+  // ── Ambient Solar Wind ───────────────────────────────────────────────────────
+  const numWind = 2000;
+  const windPos = new Float32Array(numWind * 3);
+  const windPhase = new Float32Array(numWind);
+  for (let i = 0; i < numWind; i++) {
+    windPos[i*3] = (Math.random() - 0.5) * 50;
+    windPos[i*3+1] = (Math.random() - 0.5) * 12;
+    windPos[i*3+2] = (Math.random() - 0.5) * 25;
+    windPhase[i] = Math.random();
+  }
+  const windGeo = new THREE.BufferGeometry();
+  windGeo.setAttribute('position', new THREE.BufferAttribute(windPos, 3));
+  windGeo.setAttribute('phase', new THREE.BufferAttribute(windPhase, 1));
+  const windMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      attribute float phase;
+      uniform float uTime;
+      void main() {
+        vec3 p = position;
+        float startX = -25.0;
+        float endX = 25.0;
+        float dist = endX - startX;
+        float currentX = position.x + (uTime * 18.0) + (phase * 10.0);
+        p.x = mod(currentX - startX, dist) + startX;
+
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+        gl_PointSize = 2.0;
+      }
+    `,
+    fragmentShader: `
+      void main() {
+        vec2 c = gl_PointCoord - 0.5;
+        c.y *= 8.0;
+        float dist = length(c);
+        float alpha = smoothstep(0.5, 0.2, dist);
+        gl_FragColor = vec4(0.5, 0.8, 1.0, alpha * 0.6);
+      }
+    `,
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const windMesh = new THREE.Points(windGeo, windMat);
+  scene.add(windMesh);
+
+  // ── Post-Processing Composer ─────────────────────────────────────────────────
+  const composer = new THREE.EffectComposer(renderer);
+  composer.addPass(new THREE.RenderPass(scene, camera));
+
+  const bloomPass = new THREE.UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    1.4, 0.65, 0.42
+  );
+  composer.addPass(bloomPass);
+
+  // ── Resizing ─────────────────────────────────────────────────────────────────
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ── Animation Loop ───────────────────────────────────────────────────────────
+  const clock = new THREE.Clock();
+  
+  function animate() {
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+
+    sunMat.uniforms.uTime.value = t;
+    spiralMat.uniforms.uTime.value = t;
+    cmeMat.uniforms.uTime.value = t;
+    windMat.uniforms.uTime.value = t;
+
+    const cycleDuration = 12.0;
+    const uTransitProgress = (t % cycleDuration) / cycleDuration;
+    cmeMat.uniforms.uTransitProgress.value = uTransitProgress;
+
+    cmeMesh.position.x = -15.0 + uTransitProgress * 32.0;
+    const scale = 1.0 + (uTransitProgress * 2.5);
+    cmeMesh.scale.set(scale, scale, scale);
+
+    composer.render();
+  }
+
+  animate();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TEJAS · Experiment: Procedural Sun (sun-v1)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  .label {
+    position: fixed; left: 22px; bottom: 20px;
+    font: 600 11px/1.4 "Segoe UI", system-ui, sans-serif;
+    letter-spacing: 0.22em; color: rgba(255,255,255,0.55);
+    text-transform: uppercase; pointer-events: none; user-select: none;
+  }
+  .label small { display:block; letter-spacing:0.04em; text-transform:none;
+    color: rgba(255,255,255,0.30); font-weight:500; margin-top:3px; }
+  .hint { position: fixed; right: 22px; bottom: 20px;
+    font: 500 11px/1.4 "Segoe UI", system-ui, sans-serif;
+    color: rgba(255,255,255,0.28); pointer-events:none; user-select:none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="label">Quiet Sun<small>sun-v1 · procedural · no textures</small></div>
+<div class="hint">drag to rotate · scroll to zoom</div>
+
+<!-- Three.js r128 + post-processing (CDN, no build step) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/MaskPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+
+  // ---------- renderer ----------
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;   // cinematic response curve
+  renderer.toneMappingExposure = 1.05;
+  renderer.setClearColor(0x000000, 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 3.2);
+
+  // ---------- shared GLSL: 3D simplex noise (Ashima) ----------
+  // Position-based 3D noise => seamless on the sphere, no UV poles, no texture.
+  const NOISE = `
+    vec3 mod289(vec3 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 mod289(vec4 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314*r;}
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+      const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+      vec3 i  = floor(v + dot(v, C.yyy));
+      vec3 x0 = v - i + dot(i, C.xxx);
+      vec3 g = step(x0.yzx, x0.xyz);
+      vec3 l = 1.0 - g;
+      vec3 i1 = min(g.xyz, l.zxy);
+      vec3 i2 = max(g.xyz, l.zxy);
+      vec3 x1 = x0 - i1 + C.xxx;
+      vec3 x2 = x0 - i2 + C.yyy;
+      vec3 x3 = x0 - D.yyy;
+      i = mod289(i);
+      vec4 p = permute( permute( permute(
+                 i.z + vec4(0.0, i1.z, i2.z, 1.0))
+               + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+               + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+      float n_ = 0.142857142857;
+      vec3 ns = n_ * D.wyz - D.xzx;
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+      vec4 x_ = floor(j * ns.z);
+      vec4 y_ = floor(j - 7.0 * x_);
+      vec4 x = x_ * ns.x + ns.yyyy;
+      vec4 y = y_ * ns.x + ns.yyyy;
+      vec4 h = 1.0 - abs(x) - abs(y);
+      vec4 b0 = vec4(x.xy, y.xy);
+      vec4 b1 = vec4(x.zw, y.zw);
+      vec4 s0 = floor(b0)*2.0 + 1.0;
+      vec4 s1 = floor(b1)*2.0 + 1.0;
+      vec4 sh = -step(h, vec4(0.0));
+      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+      vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+      vec3 p0 = vec3(a0.xy, h.x);
+      vec3 p1 = vec3(a0.zw, h.y);
+      vec3 p2 = vec3(a1.xy, h.z);
+      vec3 p3 = vec3(a1.zw, h.w);
+      vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+      p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+      m = m*m;
+      return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    }
+    float fbm(vec3 p){
+      float v = 0.0, a = 0.5;
+      for (int i = 0; i < 5; i++){ v += a*snoise(p); p *= 2.0; a *= 0.5; }
+      return v;
+    }
+  `;
+
+  // ---------- the star ----------
+  const sunGeo = new THREE.SphereGeometry(1.0, 128, 128);
+  const sunMat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 } },
+    vertexShader: `
+      varying vec3 vPos;     // object-space position (seamless noise domain)
+      varying vec3 vNormalV; // view-space normal (limb darkening)
+      void main(){
+        vPos = position;
+        vNormalV = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: NOISE + `
+      uniform float time;
+      varying vec3 vPos;
+      varying vec3 vNormalV;
+
+      // 6-stop emissive ramp pulled from the reference: deep red limb -> gold -> white core
+      vec3 ramp(float t){
+        vec3 c0 = vec3(0.28, 0.015, 0.0);   // deep red
+        vec3 c1 = vec3(0.62, 0.07,  0.0);   // red
+        vec3 c2 = vec3(0.95, 0.33,  0.04);  // orange
+        vec3 c3 = vec3(1.0,  0.62,  0.14);  // gold
+        vec3 c4 = vec3(1.0,  0.88,  0.52);  // hot yellow
+        vec3 c5 = vec3(1.0,  0.97,  0.90);  // white hot
+        vec3 c = mix(c0, c1, smoothstep(0.00, 0.30, t));
+        c = mix(c, c2, smoothstep(0.30, 0.50, t));
+        c = mix(c, c3, smoothstep(0.50, 0.68, t));
+        c = mix(c, c4, smoothstep(0.68, 0.85, t));
+        c = mix(c, c5, smoothstep(0.85, 1.00, t));
+        return c;
+      }
+
+      void main(){
+        vec3 p = normalize(vPos);
+        float t = time * 0.06;
+
+        // domain warp -> turbulent convective flow
+        vec3 warp = vec3(
+          fbm(p * 2.4 + vec3(0.0, t, 0.0)),
+          fbm(p * 2.4 + vec3(t, 0.0, 5.2)),
+          fbm(p * 2.4 + vec3(3.1, t, 0.0))
+        );
+
+        float cells = fbm(p * 3.2 + warp * 0.55 - vec3(t * 0.6));  // supergranulation
+        float gran  = fbm(p * 9.0 + warp * 0.40 + vec3(t * 1.6));  // fine granulation
+        float n = 0.6 * cells + 0.4 * gran;
+        n = clamp(n * 0.5 + 0.5, 0.0, 1.0);
+
+        // sharpen the bright network so granules read as cells, not mush
+        n = pow(n, 1.25);
+
+        // active-region faculae: rare very-bright patches that bloom will catch
+        float ar = smoothstep(0.62, 0.95, fbm(p * 1.8 + vec3(t * 0.3)));
+        n = mix(n, min(1.0, n + 0.5), ar * 0.8);
+
+        vec3 col = ramp(n);
+
+        // limb darkening (and a touch of limb reddening, like the real sun)
+        float ndv = max(dot(normalize(vNormalV), vec3(0.0, 0.0, 1.0)), 0.0);
+        float limb = pow(ndv, 0.45);
+        col *= mix(0.30, 1.18, limb);
+        col = mix(col * vec3(1.0, 0.55, 0.30), col, limb); // edges redden
+
+        // emissive lift so the hot regions drive the bloom
+        col *= 1.25;
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  });
+  const sun = new THREE.Mesh(sunGeo, sunMat);
+  scene.add(sun);
+
+  // ---------- corona (two additive back-side fresnel shells) ----------
+  function makeCorona(radius, power, alpha, inner, outer) {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        time:   { value: 0 },
+        power:  { value: power },
+        alpha:  { value: alpha },
+        cInner: { value: new THREE.Color(inner[0], inner[1], inner[2]) },
+        cOuter: { value: new THREE.Color(outer[0], outer[1], outer[2]) },
+      },
+      vertexShader: `
+        varying vec3 vPos; varying vec3 vNormalV;
+        void main(){
+          vPos = position;
+          vNormalV = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: NOISE + `
+        uniform float time; uniform float power; uniform float alpha;
+        uniform vec3 cInner; uniform vec3 cOuter;
+        varying vec3 vPos; varying vec3 vNormalV;
+        void main(){
+          float ndv = max(dot(normalize(vNormalV), vec3(0.0,0.0,1.0)), 0.0);
+          float fres = pow(1.0 - ndv, power);
+          // irregular, animated rim so it never looks like a clean ring
+          float turb = fbm(normalize(vPos) * 3.5 + vec3(time * 0.12));
+          fres *= 0.78 + 0.45 * turb;
+          vec3 col = mix(cOuter, cInner, fres);
+          gl_FragColor = vec4(col, clamp(fres, 0.0, 1.0) * alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 64, 64), mat);
+    scene.add(mesh);
+    return { mesh, mat };
+  }
+  const coronaInner = makeCorona(1.16, 3.0, 0.9, [1.0, 0.65, 0.25], [0.95, 0.30, 0.04]);
+  const coronaOuter = makeCorona(1.55, 2.0, 0.45, [1.0, 0.45, 0.15], [0.45, 0.05, 0.0]);
+
+  // ---------- starfield ----------
+  (function stars() {
+    const N = 1600;
+    const pos = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      // scatter on a far shell, biased so none sit in front of the sun's disc
+      const r = 30 + Math.random() * 30;
+      const u = Math.random() * 2 - 1;
+      const th = Math.random() * Math.PI * 2;
+      const s = Math.sqrt(1 - u * u);
+      pos[i*3]   = r * s * Math.cos(th);
+      pos[i*3+1] = r * u;
+      pos[i*3+2] = r * s * Math.sin(th);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const m = new THREE.PointsMaterial({
+      color: 0xffffff, size: 0.13, sizeAttenuation: true,
+      transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    scene.add(new THREE.Points(g, m));
+  })();
+
+  // ---------- post-processing: bloom (the single biggest quality lever) ----------
+  const composer = new THREE.EffectComposer(renderer);
+  composer.addPass(new THREE.RenderPass(scene, camera));
+  const bloom = new THREE.UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.95,  // strength
+    0.50,  // radius
+    0.55   // threshold (only the brightest regions bloom)
+  );
+  composer.addPass(bloom);
+
+  // ---------- interaction: drag rotate + scroll zoom ----------
+  let dragging = false, lx = 0, ly = 0, autorot = true, lastUp = 0;
+  canvas.addEventListener('mousedown', e => { dragging = true; lx = e.clientX; ly = e.clientY; });
+  window.addEventListener('mouseup', () => { if (dragging) { dragging = false; lastUp = performance.now(); } });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    sun.rotation.y += (e.clientX - lx) * 0.005;
+    sun.rotation.x += (e.clientY - ly) * 0.005;
+    sun.rotation.x = Math.max(-1.2, Math.min(1.2, sun.rotation.x));
+    lx = e.clientX; ly = e.clientY;
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    camera.position.z = Math.max(1.8, Math.min(7, camera.position.z + e.deltaY * 0.002));
+  }, { passive: false });
+
+  // ---------- resize ----------
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h);
+    composer.setSize(w, h);
+    bloom.resolution.set(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  });
+
+  // ---------- loop ----------
+  const clock = new THREE.Clock();
+  (function animate() {
+    requestAnimationFrame(animate);
+    const tt = clock.getElapsedTime();
+    sunMat.uniforms.time.value = tt;
+    coronaInner.mat.uniforms.time.value = tt;
+    coronaOuter.mat.uniforms.time.value = tt;
+
+    if (autorot && !dragging && performance.now() - lastUp > 2000) {
+      sun.rotation.y += 0.0012;
+    }
+    coronaInner.mesh.rotation.copy(sun.rotation);
+    coronaOuter.mesh.rotation.copy(sun.rotation);
+
+    composer.render();
+  })();
+})();
+</script>
+</body>
+</html>

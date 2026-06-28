@@ -163,13 +163,34 @@ def add_time_since_flare(m: pd.DataFrame, peaks: pd.Series) -> pd.DataFrame:
 
 
 def lead_times(test: pd.DataFrame, prob: np.ndarray, peaks: pd.Series,
-               threshold: float, horizon_min: int) -> dict:
-    """For each test-set flare, minutes between first alert and the peak."""
+               threshold: float, horizon_min: int,
+               starts: pd.Series | None = None) -> dict:
+    """For each test-set flare, minutes between first alert and the flare peak
+    (and optionally the flare onset/start, which is the stricter metric).
+
+    Lead-to-peak: time from first alert to peak.  Upper-bounded by horizon_min
+    because labels only cover [t, t+horizon].  Max = horizon means the model
+    fired at the very start of the prediction window.
+
+    Lead-to-onset: time from first alert to flare START.  Always positive for
+    quiescent-only prediction points (by construction), and is the operationally
+    correct metric — it tells you how early the alert fired before the flare
+    was visible in any channel.  Requires `starts` (flare start times).
+    """
     t = test["time"].to_numpy()
     horizon = np.timedelta64(horizon_min, "m")
     in_test = (peaks >= test["time"].min()) & (peaks <= test["time"].max())
-    leads, caught = [], 0
+    leads_peak, leads_onset, caught = [], [], 0
     pk_list = np.sort(peaks[in_test].to_numpy())
+
+    # Build start-time lookup: for each caught peak p, find the last flare
+    # start time that precedes p by ≤ 3 h (this must be the start of that flare).
+    # We do NOT assume starts and peaks are co-indexed — we just need a sorted
+    # array of all start times from the catalog.
+    st_arr: np.ndarray | None = None
+    if starts is not None and len(starts) > 0:
+        st_arr = np.sort(starts.to_numpy().astype("datetime64[ns]"))
+
     for p in pk_list:
         window = (t >= p - horizon) & (t <= p)
         if not window.any():
@@ -177,18 +198,39 @@ def lead_times(test: pd.DataFrame, prob: np.ndarray, peaks: pd.Series,
         fired = window & (prob >= threshold)
         if fired.any():
             first = t[fired][0]
-            leads.append((p - first) / np.timedelta64(1, "m"))
+            leads_peak.append((p - first) / np.timedelta64(1, "m"))
+            if st_arr is not None:
+                # Last start at or before p (= start of this flare).
+                idx = int(np.searchsorted(st_arr, p, side="right")) - 1
+                if idx >= 0:
+                    s = st_arr[idx]
+                    gap_h = (p - s) / np.timedelta64(1, "h")
+                    if 0.0 <= float(gap_h) <= 3.0:
+                        leads_onset.append(
+                            float((s - first) / np.timedelta64(1, "m")))
             caught += 1
-    leads = np.array(leads)
-    return {
+
+    leads_peak = np.array(leads_peak)
+    leads_onset = np.array(leads_onset) if leads_onset else None
+    result = {
         "n_flares": int(len(pk_list)),
         "n_caught": int(caught),
         "event_recall": round(caught / len(pk_list), 3) if len(pk_list) else None,
-        "median_lead_min": round(float(np.median(leads)), 1) if len(leads) else None,
-        "mean_lead_min": round(float(np.mean(leads)), 1) if len(leads) else None,
-        "max_lead_min": round(float(np.max(leads)), 1) if len(leads) else None,
-        "leads": leads.tolist(),
+        "median_lead_to_peak_min": round(float(np.median(leads_peak)), 1) if len(leads_peak) else None,
+        "mean_lead_to_peak_min": round(float(np.mean(leads_peak)), 1) if len(leads_peak) else None,
+        "max_lead_to_peak_min": round(float(np.max(leads_peak)), 1) if len(leads_peak) else None,
+        # Legacy key kept for dashboard compatibility.
+        "median_lead_min": round(float(np.median(leads_peak)), 1) if len(leads_peak) else None,
+        "leads": leads_peak.tolist(),
     }
+    if leads_onset is not None and len(leads_onset) > 0:
+        result.update({
+            "median_lead_to_onset_min": round(float(np.median(leads_onset)), 1),
+            "mean_lead_to_onset_min": round(float(np.mean(leads_onset)), 1),
+            "pct_alerts_before_onset": round(float((leads_onset > 0).mean()), 3),
+            "leads_onset": leads_onset.tolist(),
+        })
+    return result
 
 
 def alarm_episodes(times: np.ndarray, fire: np.ndarray,

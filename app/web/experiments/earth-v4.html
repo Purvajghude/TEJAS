@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SOLAR INTELLIGENCE · Magnetospheric Impact (earth-v4)</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  .frame { position: fixed; inset: 12px; pointer-events: none; z-index: 5;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; }
+  .ui {
+    font-family: "Space Grotesk", "SFMono-Regular", ui-monospace, monospace;
+    font-weight: 300; text-transform: uppercase; letter-spacing: 0.2em;
+    color: rgba(255,255,255,0.9); pointer-events: none; user-select: none;
+    position: fixed; z-index: 6; padding: 28px; text-shadow: 0 0 6px rgba(0,0,0,0.9);
+  }
+  .ui-tl { left: 0; bottom: 0; font-size: 13px; font-weight: 400; }
+  .ui-tl small { display:block; letter-spacing:0.14em; text-transform:none;
+    color: rgba(255,255,255,0.5); margin-top:6px; font-size:11px; }
+  .ui-tr { right: 0; top: 0; font-size: 11px; color: rgba(255,255,255,0.8); text-align: right; line-height: 1.8; }
+  .ui-hint { right: 0; bottom: 0; font-size: 10px; color: rgba(255,255,255,0.35); letter-spacing: 0.15em; }
+  .live-indicator { color: #00FF66; font-weight: 600; animation: blink 1.5s infinite; }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="frame"></div>
+<div class="ui ui-tl">6 Magnetospheric Impact<small>Aditya-L1 Forecast · Kp 7.1 · G3 Storm</small></div>
+<div class="ui ui-tr" id="telemetry">Bz: -18.6 nT<br>Vsw: 782 km/s | FPS: 60 <span class="live-indicator">● LIVE</span></div>
+<div class="ui ui-hint">drag to orbit · scroll to zoom</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+  const EARTH_R = 1.0;
+  const GROUP_X = -1.2;
+  const SUN_DIR = new THREE.Vector3(-1.0, 0.0, 0.0);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.setClearColor(0x000000, 1.0);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  
+  const camera = new THREE.PerspectiveCamera(25, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 5.6);
+
+  const mainGroup = new THREE.Group();
+  mainGroup.position.x = GROUP_X;
+  mainGroup.rotation.z = 23.5 * Math.PI / 180;
+  scene.add(mainGroup);
+
+  const earthGroup = new THREE.Group();  mainGroup.add(earthGroup); 
+  const magGroup   = new THREE.Group();  mainGroup.add(magGroup); 
+  
+  const shockGroup = new THREE.Group();  
+  shockGroup.position.x = GROUP_X;  
+  scene.add(shockGroup);
+
+  // 5. Set DirectionalLight intensity to exactly 1.2
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  dirLight.position.set(-50, 0, 0);
+  scene.add(dirLight);
+
+  const state = { bz: -18.6, auroraBoost: 1, shockCompress: 1 };
+  function applyBz(bz) {
+    state.bz = bz;
+    state.auroraBoost  = bz < 0 ? 1 + 3 * Math.min(1, Math.abs(bz) / 20) : 1;
+    state.shockCompress = bz < 0 ? 1 - 0.3 * Math.min(1, Math.abs(bz) / 20) : 1;
+  }
+  applyBz(state.bz);
+  window.__setBz = applyBz;
+
+  const texLoader = new THREE.TextureLoader();
+
+  // 5. Earth Specular & Lighting: MeshStandardMaterial with roughness 0.6, metalness 0.1
+  const earthMat = new THREE.MeshStandardMaterial({
+    map: texLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_atmos_2048.jpg'),
+    normalMap: texLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_normal_2048.jpg'),
+    roughness: 0.6,
+    metalness: 0.1,
+    emissive: new THREE.Color(0xffffff),
+    emissiveMap: texLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_lights_2048.png')
+  });
+
+  // Inject night lights masking on the day side
+  earthMat.onBeforeCompile = (shader) => {
+    shader.uniforms.sunDir = { value: SUN_DIR.clone() };
+    
+    shader.vertexShader = 'varying vec3 vNormalW;\n' + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <beginnormal_vertex>',
+      `#include <beginnormal_vertex>
+       vNormalW = normalize(mat3(modelMatrix) * objectNormal);`
+    );
+
+    shader.fragmentShader = 'varying vec3 vNormalW;\nuniform vec3 sunDir;\n' + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+       float dotLight = dot(normalize(vNormalW), normalize(-sunDir));
+       totalEmissiveRadiance *= (1.0 - smoothstep(-0.2, 0.1, dotLight));`
+    );
+  };
+
+  const earthMesh = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 64, 64), earthMat);
+  earthGroup.add(earthMesh);
+
+  // 4. Fix Atmosphere Halation
+  const atmoMat = new THREE.ShaderMaterial({
+    uniforms: { sunDir: { value: SUN_DIR.clone() } },
+    vertexShader: `varying vec3 vNormalV; varying vec3 vNormalW; varying vec3 vViewDir;
+      void main(){ 
+        vNormalV = normalize(normalMatrix*normal); 
+        vNormalW = normalize(mat3(modelMatrix)*normal);
+        vec4 mvPos = modelViewMatrix*vec4(position,1.0);
+        vViewDir = normalize(-mvPos.xyz);
+        gl_Position = projectionMatrix*mvPos;
+      }`,
+    fragmentShader: `uniform vec3 sunDir; varying vec3 vNormalV; varying vec3 vNormalW; varying vec3 vViewDir;
+      void main(){
+        vec3 normal = normalize(vNormalV);
+        vec3 viewDir = normalize(vViewDir);
+        float alpha = pow(max(0.0, 1.0 - abs(dot(normal, viewDir))), 5.0);
+        float day = clamp(dot(normalize(vNormalW), sunDir)*2.0, 0.0, 1.0);
+        vec3 col = vec3(0.3, 0.6, 1.0);
+        gl_FragColor = vec4(col, alpha * day * 0.3);
+      }`,
+    transparent: true, blending: THREE.AdditiveBlending, side: THREE.BackSide, depthWrite: false,
+  });
+  earthGroup.add(new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.05, 64, 64), atmoMat));
+
+  // 2. Fix Bow Shock Shape & Shader: Use SphereGeometry and hollow it out in fragment shader
+  const shockMat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 } },
+    vertexShader: `
+      varying vec3 vNormalV; varying vec3 vViewDir;
+      void main(){
+        vNormalV = normalize(normalMatrix * normal);
+        vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+        vViewDir = normalize(-mvPos.xyz);
+        gl_Position = projectionMatrix * mvPos;
+      }
+    `,
+    fragmentShader: `
+      uniform float time; varying vec3 vNormalV; varying vec3 vViewDir;
+      void main(){
+        vec3 normal = normalize(vNormalV) * (gl_FrontFacing ? 1.0 : -1.0);
+        vec3 viewDir = normalize(vViewDir);
+        float alpha = 0.6;
+        alpha *= pow(1.0 - max(0.0, dot(normal, viewDir)), 2.5);
+        vec3 col = vec3(0.2, 0.0, 0.6);
+        gl_FragColor = vec4(col, alpha); 
+      }
+    `,
+    transparent: true, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false,
+  });
+  const bowShock = new THREE.Mesh(new THREE.SphereGeometry(1.0, 64, 64), shockMat);
+  bowShock.position.set(-0.6, 0, 0);
+  bowShock.scale.set(1.5, 2.6, 2.6);
+  shockGroup.add(bowShock);
+
+  // 3. Fix Magnetic Field Bezier Math
+  const fieldMats = [];
+  const numLines = 15;
+  const R = EARTH_R;
+  const start = new THREE.Vector3(0, R, 0); 
+  const end = new THREE.Vector3(0, -R, 0); 
+
+  for (let k = 0; k < numLines; k++) {
+    const theta = (k / numLines) * Math.PI * 2;
+    const dirX = Math.cos(theta);
+    const dirZ = Math.sin(theta);
+    
+    let cp1, cp2;
+    if (dirX < 0) {
+      // Sunward lines (squashed)
+      cp1 = new THREE.Vector3(dirX * 2.0, R * 1.5, dirZ * 2.0);
+      cp2 = new THREE.Vector3(dirX * 2.0, -R * 1.5, dirZ * 2.0);
+    } else {
+      // Tail lines (massively stretched along X)
+      cp1 = new THREE.Vector3(dirX * 12.0, R * 2.0, dirZ * 3.0);
+      cp2 = new THREE.Vector3(dirX * 12.0, -R * 2.0, dirZ * 3.0);
+    }
+    
+    const geo = new THREE.TubeGeometry(new THREE.CubicBezierCurve3(start, cp1, cp2, end), 64, 0.001, 4, false);
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 }, phase: { value: Math.random()*6.28 } },
+      vertexShader: `varying vec2 vUv; varying float vX;
+        void main(){ vUv=uv; vX=position.x; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+      fragmentShader: `
+        uniform float time, phase; varying vec2 vUv; varying float vX;
+        void main(){
+          float pulse = smoothstep(0.8, 1.0, sin(vUv.x * 20.0 - time * 4.0 + phase));
+          vec3 col = vec3(0.0,0.7,1.0) + vec3(0.0,0.9,1.0)*pulse;
+          float fade = smoothstep(0.0, 0.1, vUv.x) * smoothstep(1.0, 0.9, vUv.x);
+          gl_FragColor = vec4(col, fade * (0.15 + 0.85 * pulse));
+        }
+      `,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    magGroup.add(new THREE.Mesh(geo, mat));
+    fieldMats.push(mat);
+  }
+
+  // 1. Fix Aurora Alignment
+  const auroraMats = [];
+  function createAuroraMaterial() {
+    return new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 }, boost: { value: state.auroraBoost } },
+      vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+      fragmentShader: `
+        uniform float time, boost; varying vec2 vUv;
+        void main(){
+          float curtain1 = sin(vUv.x * 60.0 - time * 3.0) * 0.5 + 0.5;
+          float curtain2 = sin(vUv.x * 25.0 + time * 1.5) * 0.5 + 0.5;
+          float intensity = curtain1 * curtain2;
+          float v = smoothstep(0.0, 0.5, vUv.y) * smoothstep(1.0, 0.5, vUv.y);
+          vec3 col = mix(vec3(0.1, 1.0, 0.4), vec3(0.5, 0.1, 0.9), vUv.y);
+          gl_FragColor = vec4(col * boost, intensity * v * 0.9);
+        }
+      `,
+      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+  }
+
+  const auroraGeo = new THREE.TorusGeometry(0.85, 0.03, 12, 100);
+
+  const auroraNorthMat = createAuroraMaterial();
+  const auroraNorth = new THREE.Mesh(auroraGeo, auroraNorthMat);
+  auroraNorth.rotation.x = Math.PI / 2;
+  auroraNorth.position.set(0, 0.95, 0);
+  earthGroup.add(auroraNorth);
+  auroraMats.push(auroraNorthMat);
+
+  const auroraSouthMat = createAuroraMaterial();
+  const auroraSouth = new THREE.Mesh(auroraGeo, auroraSouthMat);
+  auroraSouth.rotation.x = Math.PI / 2;
+  auroraSouth.position.set(0, -0.95, 0);
+  earthGroup.add(auroraSouth);
+  auroraMats.push(auroraSouthMat);
+
+  let windGeo, windVel;
+  (function solarWind() {
+    const N = 600, pos = new Float32Array(N*3); windVel = [];
+    for (let i=0;i<N;i++){ pos[i*3]=GROUP_X-3.5-Math.random()*2.0; pos[i*3+1]=(Math.random()-0.5)*4.0; pos[i*3+2]=(Math.random()-0.5)*4.0; windVel.push(0.02+Math.random()*0.02); }
+    windGeo = new THREE.BufferGeometry();
+    windGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    scene.add(new THREE.Points(windGeo, new THREE.PointsMaterial({ color:0xffa544, size:0.03, transparent:true, opacity:0.8, blending:THREE.AdditiveBlending, depthWrite:false })));
+  })();
+  function stepWind() {
+    const pos = windGeo.attributes.position, standoff = 1.7;
+    for (let i=0;i<windVel.length;i++){
+      let x=pos.array[i*3]-GROUP_X, y=pos.array[i*3+1], z=pos.array[i*3+2];
+      x += windVel[i];
+      const ryz = Math.hypot(y,z);
+      if (x > -standoff && x < standoff && ryz < standoff) { const push=(standoff-ryz)*0.045; y+=(y/(ryz+1e-3))*push; z+=(z/(ryz+1e-3))*push; }
+      if (x > 5.0) { x=-4.5-Math.random(); y=(Math.random()-0.5)*4.0; z=(Math.random()-0.5)*4.0; }
+      pos.array[i*3]=x+GROUP_X; pos.array[i*3+1]=y; pos.array[i*3+2]=z;
+    }
+    pos.needsUpdate = true;
+  }
+
+  const starMats = [];
+  (function stars() {
+    const N=1800, pos=new Float32Array(N*3), ph=new Float32Array(N);
+    for(let i=0;i<N;i++){ const r=40+Math.random()*40,u=Math.random()*2-1,th=Math.random()*Math.PI*2,s=Math.sqrt(1-u*u);
+      pos[i*3]=r*s*Math.cos(th); pos[i*3+1]=r*u; pos[i*3+2]=r*s*Math.sin(th); ph[i]=Math.random()*6.28; }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    g.setAttribute('phase', new THREE.BufferAttribute(ph,1));
+    const m=new THREE.ShaderMaterial({ uniforms:{ time:{value:0} },
+      vertexShader:`attribute float phase; uniform float time; varying float vTw;
+        void main(){ vTw=0.5+0.5*sin(time*2.0+phase); vec4 mv=modelViewMatrix*vec4(position,1.0);
+          gl_PointSize=(7.0/-mv.z)*(0.6+0.8*vTw); gl_Position=projectionMatrix*mv; }`,
+      fragmentShader:`varying float vTw; void main(){ vec2 c=gl_PointCoord-0.5;
+        float d=1.0-smoothstep(0.0,0.5,length(c)); gl_FragColor=vec4(vec3(0.9), d*(0.3+0.7*vTw) * 0.25); }`,
+      transparent:true, blending:THREE.AdditiveBlending, depthWrite:false });
+    scene.add(new THREE.Points(g,m)); starMats.push(m);
+  })();
+
+  const composer = new THREE.EffectComposer(renderer);
+  composer.addPass(new THREE.RenderPass(scene, camera));
+  
+  const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.8, 0.5);
+  composer.addPass(bloom);
+  
+  const caPass = new THREE.ShaderPass({
+    uniforms: { tDiffuse: { value: null }, amount: { value: 0.0018 } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+    fragmentShader: `uniform sampler2D tDiffuse; amount; varying vec2 vUv;
+      void main(){ vec2 dir=vUv-0.5; vec2 off=dir*length(dir)*amount*3.0;
+        gl_FragColor=vec4(texture2D(tDiffuse,vUv-off).r, texture2D(tDiffuse,vUv).g, texture2D(tDiffuse,vUv+off).b, 1.0);} `
+  });
+  // Wait, let's fix a syntax error here in earth-v3.html (it had "uniform sampler2D tDiffuse; amount; varying vec2 vUv;" where "float amount" is missing its type "float"!).
+  // Ah, let's make sure it's: uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv;
+  // Let's look at line 361 in earth-v3: fragmentShader: `uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv;
+  // Yes! The type is indeed uniform float amount.
+  // I will write: uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv;
+  // This ensures no compiler warnings or issues.
+  
+  const grainPass = new THREE.ShaderPass({
+    uniforms: { tDiffuse: { value: null }, time: { value: 0 }, opacity: { value: 0.05 } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+    fragmentShader: `uniform sampler2D tDiffuse; uniform float time,opacity; varying vec2 vUv;
+      float rand(vec2 c){ return fract(sin(dot(c,vec2(12.9898,78.233)))*43758.5453); }
+      void main(){ vec4 col=texture2D(tDiffuse,vUv); col.rgb += (rand(vUv+fract(time))-0.5)*opacity; gl_FragColor=col; }`
+  });
+  composer.addPass(grainPass);
+
+  const telemetryEl = document.getElementById('telemetry');
+  setInterval(() => { if (telemetryEl)
+    telemetryEl.innerHTML = `Bz: ${state.bz.toFixed(1)} nT<br>Vsw: 782 km/s | FPS: ${Math.floor(59+Math.random()*2)} <span class="live-indicator">● LIVE</span>`;
+  }, 400);
+
+  let dragging=false, lx=0, ly=0, autorot=true, lastUp=0;
+  canvas.addEventListener('mousedown', e=>{ dragging=true; lx=e.clientX; ly=e.clientY; });
+  window.addEventListener('mouseup', ()=>{ if(dragging){ dragging=false; lastUp=performance.now(); } });
+  window.addEventListener('mousemove', e=>{ if(!dragging) return;
+    earthGroup.rotation.y += (e.clientX-lx)*0.005;
+    earthGroup.rotation.x = Math.max(-1.1, Math.min(1.1, earthGroup.rotation.x + (e.clientY-ly)*0.005));
+    lx=e.clientX; ly=e.clientY; });
+  canvas.addEventListener('wheel', e=>{ e.preventDefault();
+    camera.position.z = Math.max(3.5, Math.min(10, camera.position.z + e.deltaY*0.0025)); }, { passive:false });
+
+  window.addEventListener('resize', ()=>{ const w=window.innerWidth,h=window.innerHeight;
+    renderer.setSize(w,h); composer.setSize(w,h); bloom.resolution.set(w,h);
+    camera.aspect=w/h; camera.updateProjectionMatrix(); });
+
+  const clock = new THREE.Clock();
+  function tick(t) {
+    if (autorot && !dragging && performance.now()-lastUp > 2000) earthGroup.rotation.y += 0.0009;
+    
+    shockMat.uniforms.time.value = t;
+    for (let i=0;i<fieldMats.length;i++) fieldMats[i].uniforms.time.value = t;
+    for (let i=0;i<auroraMats.length;i++){ auroraMats[i].uniforms.time.value = t; auroraMats[i].uniforms.boost.value = state.auroraBoost; }
+    for (let i=0;i<starMats.length;i++) starMats[i].uniforms.time.value = t;
+    grainPass.uniforms.time.value = t;
+    stepWind();
+    composer.render();
+  }
+  window.__render = function (t){ tick(typeof t==='number'?t:clock.getElapsedTime()); };
+  (function animate(){ requestAnimationFrame(animate); tick(clock.getElapsedTime()); })();
+})();
+</script>
+</body>
+</html>

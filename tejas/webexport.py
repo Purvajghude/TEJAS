@@ -72,6 +72,9 @@ def build_payload(cfg: Config | None = None) -> dict:
     qpp_path = cfg.paths["catalogs"] / "qpp_report.json"
     qpp = json.loads(qpp_path.read_text()) if qpp_path.exists() else None
 
+    bench_path = cfg.paths["outputs"].parent / "eval" / "benchmark.json"
+    benchmark = json.loads(bench_path.read_text()) if bench_path.exists() else None
+
     sharp_path = cfg.paths["forecasting"] / "sharp_ablation.json"
     sharp_abl = json.loads(sharp_path.read_text()) if sharp_path.exists() else None
     # Ensemble probability track (10-min peak), the live forecast-alert driver.
@@ -196,10 +199,24 @@ def build_payload(cfg: Config | None = None) -> dict:
             "tss": ensemble["test_metrics"]["ensemble"]["TSS"],
             "brier": ensemble["test_metrics"]["ensemble"]["Brier"],
             "horizon": ensemble["primary_horizon_min"],
-            "leadMedian": ensemble["lead_time"].get("median_lead_min"),
+            "leadMedianToPeak": ensemble["lead_time"].get("median_lead_to_peak_min")
+                                or ensemble["lead_time"].get("median_lead_min"),
+            "leadMedianToOnset": ensemble["lead_time"].get("median_lead_to_onset_min"),
+            "pctAlertsBeforeOnset": ensemble["lead_time"].get("pct_alerts_before_onset"),
+            "leadMedian": ensemble["lead_time"].get("median_lead_min"),  # legacy
+            # Primary headline: precision operating point (0.31 FA/day).
+            # This is the operational-grade threshold that a space-weather centre
+            # could actually deploy — 1 false alarm every 3 days.
+            "precisionOp": (ensemble.get("operating_points", {})
+                            .get("low_far_1_per_day")),
+            # Secondary: recall-max (highest detection rate, ~8 FA/day).
+            "recallOp": (ensemble.get("operating_points", {})
+                         .get("recall_max")),
+            # Legacy key kept for dashboard JS that references operatingPoints.
             "operatingPoints": ensemble.get("operating_points"),
             "lowFarThreshold": (ensemble.get("operating_points", {})
                                 .get("low_far_1_per_day", {}).get("threshold")),
+            "tcnCalibrationGain": ensemble.get("tcn_calibration_gain"),
             "track": forecast_track,
         } if ensemble else None),
         "multiclass": ({
@@ -218,7 +235,14 @@ def build_payload(cfg: Config | None = None) -> dict:
             "nAnalysed": qpp["n_flares_analysed"],
             "medianPeriodS": qpp["median_qpp_period_s"],
             "periodRangeS": qpp["period_range_s"],
+            "literatureContext": qpp.get("literature_context"),
         } if qpp else None),
+        "benchmark": ({
+            "horizon_min": benchmark["horizon_min"],
+            "baselines": benchmark["baselines"],
+            "literatureCaveat": benchmark["literature_caveat"],
+            "literature": benchmark["literature"],
+        } if benchmark else None),
         "sharp": ({
             "coverage": sharp_abl["sharp_coverage_frac"],
             "xrayAuc": sharp_abl["xray_only"]["metrics"]["ROC_AUC"],
