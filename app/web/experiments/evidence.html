@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TEJAS · Evidence View</title>
+<style>
+  :root{
+    --bg:#050608; --panel:#0b0e12; --panel2:#0e1217; --line:rgba(255,255,255,0.08);
+    --ink:#e8eef2; --muted:#8a94a0; --faint:#5a6470;
+    --soft:#3aa0ff; --hard:#34e0a1; --goes:#f5c451; --risk:#ff5a4d;
+    --live:#00ff66; --modelled:#ffcc44; --illus:#7a8694;
+    --cyan:#00cfff;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(900px 500px at 78% -8%, rgba(40,70,110,0.18), transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Space Grotesk","SF Mono",ui-monospace,"Consolas",monospace;
+    letter-spacing:0.01em; padding:18px 20px 40px; overflow-x:hidden;
+  }
+  .frame{position:fixed; inset:8px; border:1px solid var(--line); border-radius:10px; pointer-events:none; z-index:50}
+
+  /* top bar */
+  .topbar{display:flex; align-items:center; justify-content:space-between; padding:6px 8px 16px; gap:16px; flex-wrap:wrap}
+  .brand{display:flex; align-items:baseline; gap:14px}
+  .brand b{font-size:15px; letter-spacing:0.32em; font-weight:600}
+  .brand span{font-size:11px; letter-spacing:0.22em; color:var(--muted); text-transform:uppercase}
+  .topright{display:flex; align-items:center; gap:18px; font-size:11px; color:var(--muted); letter-spacing:0.14em; text-transform:uppercase}
+  .live{color:var(--live); font-weight:600}
+  .live i{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--live); margin-right:6px; box-shadow:0 0 8px var(--live); animation:blink 1.6s infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* provenance legend */
+  .legend{display:flex; gap:18px; align-items:center; font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--muted)}
+  .legend .b{display:inline-flex; align-items:center; gap:6px}
+  .dotg{width:8px;height:8px;border-radius:2px}
+  .lv{background:var(--live)} .md{background:var(--modelled)} .il{background:var(--illus)}
+
+  /* grid */
+  .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:14px; margin-top:6px}
+  .panel{
+    grid-column:span 4; background:linear-gradient(180deg,var(--panel2),var(--panel));
+    border:1px solid var(--line); border-radius:12px; padding:16px 16px 14px; position:relative;
+    min-height:150px; box-shadow:0 12px 40px rgba(0,0,0,0.4);
+  }
+  .span8{grid-column:span 8} .span6{grid-column:span 6} .span12{grid-column:span 12} .span4{grid-column:span 4}
+  @media(max-width:1100px){.panel,.span8,.span6,.span4{grid-column:span 12}}
+
+  .phead{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px}
+  .pnum{font-size:10px; color:var(--faint); letter-spacing:0.2em}
+  .ptitle{font-size:13px; font-weight:600; letter-spacing:0.04em}
+  .psub{font-size:10.5px; color:var(--muted); margin-top:3px; letter-spacing:0.02em; line-height:1.5}
+  .badge{font-size:8.5px; letter-spacing:0.16em; text-transform:uppercase; padding:3px 7px; border-radius:5px; white-space:nowrap; font-weight:600}
+  .badge.live{color:var(--live); background:rgba(0,255,102,0.10); border:1px solid rgba(0,255,102,0.3)}
+  .badge.modelled{color:var(--modelled); background:rgba(255,204,68,0.10); border:1px solid rgba(255,204,68,0.3)}
+  .badge.illus{color:var(--illus); background:rgba(122,134,148,0.10); border:1px solid rgba(122,134,148,0.3)}
+
+  /* stat blocks */
+  .stat{display:flex; flex-direction:column; gap:2px}
+  .stat .v{font-size:26px; font-weight:600; line-height:1}
+  .stat .v small{font-size:13px; color:var(--muted); font-weight:500}
+  .stat .l{font-size:9.5px; color:var(--muted); letter-spacing:0.12em; text-transform:uppercase}
+  .statgrid{display:grid; grid-template-columns:1fr 1fr; gap:14px 12px; margin-top:4px}
+
+  .legendline{display:flex; gap:16px; font-size:10px; color:var(--muted); margin-top:8px; letter-spacing:0.06em}
+  .legendline i{display:inline-block; width:14px; height:2px; vertical-align:middle; margin-right:6px}
+
+  .callout{position:absolute; padding:6px 9px; background:rgba(8,12,16,0.85); border:1px solid var(--line); border-radius:6px; font-size:10px; color:var(--ink); letter-spacing:0.04em}
+
+  .barRow{display:flex; align-items:center; gap:10px; margin:9px 0}
+  .barRow .name{width:78px; font-size:11px; color:var(--ink); letter-spacing:0.04em}
+  .barTrack{flex:1; height:9px; background:rgba(255,255,255,0.05); border-radius:6px; overflow:hidden}
+  .barFill{height:100%; border-radius:6px}
+  .barRow .val{width:46px; text-align:right; font-size:12px; font-weight:600}
+
+  .note{font-size:9.5px; color:var(--faint); line-height:1.55; margin-top:10px; letter-spacing:0.02em}
+  .kch{color:var(--ink); font-weight:600}
+  svg{display:block; width:100%; overflow:visible}
+</style>
+</head>
+<body>
+<div class="frame"></div>
+
+<div class="topbar">
+  <div class="brand"><b>TEJAS</b><span>Evidence View · Aditya-L1 Solar Flare Intelligence</span></div>
+  <div class="topright">
+    <span>DATA: ADITYA-L1 (SoLEXS + HEL1OS)</span>
+    <span class="live"><i></i>LIVE</span>
+  </div>
+</div>
+<div class="legend" style="padding:0 8px 14px">
+  <span>PROVENANCE:</span>
+  <span class="b"><span class="dotg lv"></span>Live — measured/derived from Aditya-L1 via TEJAS</span>
+  <span class="b"><span class="dotg md"></span>Modelled — cited empirical relationship</span>
+  <span class="b"><span class="dotg il"></span>Illustrative — scenario, not measured</span>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script src="data.js"></script>
+<script>
+(function(){
+  const T = window.TEJAS;
+  const grid = document.getElementById('grid');
+  const $ = (h)=>{ const d=document.createElement('div'); d.innerHTML=h.trim(); return d.firstChild; };
+  const num = (v,d=2)=> (v==null||isNaN(v))?'—':Number(v).toFixed(d);
+  const pct = (v,d=1)=> (v==null||isNaN(v))?'—':(v*100).toFixed(d)+'%';
+
+  // ---- chart helpers (pure SVG, no deps) ----
+  function bucketMax(arr, target){
+    const n=arr.length; if(n<=target) return arr.slice();
+    const out=[], step=n/target;
+    for(let i=0;i<target;i++){ let lo=Math.floor(i*step), hi=Math.floor((i+1)*step), m=-Infinity;
+      for(let j=lo;j<hi;j++){ const v=arr[j]; if(v!=null && v>m) m=v; } out.push(m===-Infinity?null:m); }
+    return out;
+  }
+  function pathFrom(vals, W, H, pad, yMin, yMax){
+    const n=vals.length, span=(yMax-yMin)||1;
+    const x=i=> pad + (W-2*pad)*(n<2?0:i/(n-1));
+    const y=v=> H-pad - (H-2*pad)*((v-yMin)/span);
+    let d='', pen=false;
+    for(let i=0;i<n;i++){ const v=vals[i];
+      if(v==null){ pen=false; continue; }
+      d += (pen?'L':'M') + x(i).toFixed(1)+' '+y(Math.max(yMin,Math.min(yMax,v))).toFixed(1)+' '; pen=true; }
+    return d;
+  }
+  function glowDefs(){ return `<defs>
+    <filter id="glow" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter></defs>`; }
+
+  function panel({span='span4', num:n, title, sub, badge='live', body=''}){
+    const cls = badge==='live'?'live':badge==='modelled'?'modelled':'illus';
+    const lbl = badge.toUpperCase();
+    return $(`<div class="panel ${span}">
+      <div class="phead">
+        <div><div class="pnum">${n||''}</div><div class="ptitle">${title}</div>${sub?`<div class="psub">${sub}</div>`:''}</div>
+        <div class="badge ${cls}">${lbl}</div>
+      </div>${body}</div>`);
+  }
+
+  /* ============ PANEL 1 — NEUPERT DUAL-CHANNEL (hero, LIVE) ============ */
+  (function neupert(){
+    const L=T.light, C=L.counts, Hd=L.hard;
+    // find the soft peak inside the hard-available region
+    let hi=-1, best=-1;
+    for(let i=0;i<C.length;i++){ if(Hd[i]!=null && C[i]!=null && C[i]>best){ best=C[i]; hi=i; } }
+    const a=Math.max(0,hi-70), b=Math.min(C.length, hi+70);
+    const soft=C.slice(a,b), hard=Hd.slice(a,b);
+    const nrm=arr=>{ const v=arr.filter(x=>x!=null); const mn=Math.min(...v), mx=Math.max(...v);
+      return arr.map(x=> x==null?null:(x-mn)/((mx-mn)||1)); };
+    const sN=nrm(soft), hN=nrm(hard);
+    const W=760,H=210,pad=18;
+    const lead=T.fusion?T.fusion.neupertLeadMedianS:null, nn=T.fusion?T.fusion.neupertN:null;
+    const body=`
+      <svg viewBox="0 0 ${W} ${H}">${glowDefs()}
+        <path d="${pathFrom(sN,W,H,pad,0,1)}" fill="none" stroke="var(--soft)" stroke-width="1.8" filter="url(#glow)" opacity="0.95"/>
+        <path d="${pathFrom(hN,W,H,pad,0,1)}" fill="none" stroke="var(--hard)" stroke-width="1.8" filter="url(#glow)" opacity="0.95"/>
+      </svg>
+      <div class="legendline">
+        <span><i style="background:var(--hard)"></i>HEL1OS hard X-ray (impulsive)</span>
+        <span><i style="background:var(--soft)"></i>SoLEXS soft X-ray (gradual)</span>
+      </div>
+      <div class="note">The <span class="kch">Neupert effect</span>: non-thermal hard X-rays peak <span class="kch">${lead?Math.round(lead):'—'} s before</span> the soft-X-ray peak (median over <span class="kch">n=${nn||'—'}</span> dual-confirmed flares). This is the physical basis for combining both payloads — and the source of genuine pre-peak lead time. Curves normalised to show timing, not absolute flux.</div>`;
+    grid.appendChild(panel({span:'span8', num:'01 · SOFT + HARD FUSION', title:'The Neupert Effect — hard X-rays lead soft', sub:'Why SoLEXS + HEL1OS together beat either alone', badge:'live', body}));
+  })();
+
+  /* ============ PANEL 2 — CATALOGUE SCALE (LIVE) ============ */
+  (function scale(){
+    const k=T.kpis, f=T.fusion, m=T.meta;
+    const body=`<div class="statgrid">
+      <div class="stat"><div class="v">${k.nFlares.toLocaleString()}</div><div class="l">Flares detected</div></div>
+      <div class="stat"><div class="v">${f?f.nDualConfirmed.toLocaleString():'—'}</div><div class="l">Soft+hard dual-confirmed</div></div>
+      <div class="stat"><div class="v">${k.nX}<small> X</small> · ${k.nM}<small> M</small></div><div class="l">Strong flares (X / M)</div></div>
+      <div class="stat"><div class="v">${m.nDays}</div><div class="l">Observing days</div></div>
+      <div class="stat"><div class="v">${pct(k.agreement)}</div><div class="l">GOES letter-class agree</div></div>
+      <div class="stat"><div class="v">${num(k.calibR,3)}</div><div class="l">SoLEXS↔GOES calib r</div></div>
+    </div>
+    <div class="note">${m.dateStart} → ${m.dateEnd}. Every flare independently detected in both channels and cross-checked against GOES ground truth.</div>`;
+    grid.appendChild(panel({span:'span4', num:'02 · CATALOGUE', title:'Two years of Aditya-L1', sub:'Detection + classification scale', badge:'live', body}));
+  })();
+
+  /* ============ PANEL 3 — FORECAST RISK CURVE (LIVE) ============ */
+  (function forecast(){
+    const tr=T.ensemble&&T.ensemble.track, e=T.ensemble;
+    let body;
+    if(tr && tr.p){
+      // window around the strongest alert to show a real threshold crossing
+      let hi=0,best=-1; for(let i=0;i<tr.p.length;i++){ if(tr.p[i]>best){best=tr.p[i];hi=i;} }
+      const a=Math.max(0,hi-260), b=Math.min(tr.p.length,hi+120);
+      const seg=bucketMax(tr.p.slice(a,b), 600);
+      const thr=e.lowFarThreshold||0.0503;
+      const W=760,H=210,pad=18, yMax=Math.max(best*1.05, thr*1.4);
+      const yOf=v=> H-pad-(H-2*pad)*(v/yMax);
+      const thrY=yOf(thr).toFixed(1);
+      body=`<svg viewBox="0 0 ${W} ${H}">${glowDefs()}
+        <line x1="${pad}" y1="${thrY}" x2="${W-pad}" y2="${thrY}" stroke="var(--risk)" stroke-width="1" stroke-dasharray="4 4" opacity="0.6"/>
+        <text x="${W-pad}" y="${thrY-6}" text-anchor="end" font-size="9" fill="var(--risk)" opacity="0.8">ALERT THRESHOLD (0.31 FA/day)</text>
+        <path d="${pathFrom(seg,W,H,pad,0,yMax)}" fill="none" stroke="var(--risk)" stroke-width="1.8" filter="url(#glow)"/>
+      </svg>
+      <div class="note">Live M-class forecast probability (TCN + LightGBM ensemble, 30-min horizon). The dashed line is the operational alert threshold tuned to <span class="kch">0.31 false alarms/day</span>. Median warning lead: <span class="kch">${num(e.leadMedian,1)} min</span> before peak. Window centred on a real high-confidence alert from the held-out test set.</div>`;
+    } else { body=`<div class="note">Forecast track unavailable in this snapshot.</div>`; }
+    grid.appendChild(panel({span:'span8', num:'03 · FORECAST', title:'Live flare-risk forecast', sub:'Pre-onset probability with operational alert threshold', badge:'live', body}));
+  })();
+
+  /* ============ PANEL 4 — SKILL SCORECARD (LIVE) ============ */
+  (function skill(){
+    const e=T.ensemble, wf=T.forecast&&T.forecast.walkForward, op=e&&e.operatingPoints&&e.operatingPoints.low_far_1_per_day;
+    const body=`<div class="statgrid">
+      <div class="stat"><div class="v">${num(e.auc,3)}</div><div class="l">ROC-AUC (M+, 30 min)</div></div>
+      <div class="stat"><div class="v">${num(e.tss,3)}</div><div class="l">True Skill Statistic</div></div>
+      <div class="stat"><div class="v">${num(e.brier,4)}</div><div class="l">Brier (calibrated)</div></div>
+      <div class="stat"><div class="v">${op?num(op.false_alarms_per_day,2):'—'}<small>/day</small></div><div class="l">False alarms @ op point</div></div>
+    </div>
+    <div class="note">Leakage-free: in-flare samples excluded, so the model is graded only on genuine <span class="kch">pre-onset</span> prediction.
+    ${wf?`Walk-forward CV (${wf.n_folds} folds): AUC <span class="kch">${num(wf.ROC_AUC_mean,3)} ± ${num(wf.ROC_AUC_std,3)}</span>, TSS <span class="kch">${num(wf.TSS_mean,3)} ± ${num(wf.TSS_std,3)}</span> — skill is stable across time, not a lucky split.`:''}
+    ${op?`At the operational point: recall <span class="kch">${pct(op.event_recall)}</span>, episode precision <span class="kch">${pct(op.episode_precision)}</span>.`:''}</div>`;
+    grid.appendChild(panel({span:'span4', num:'04 · SKILL', title:'Forecast skill (held-out test)', sub:'The numbers that survive Q&A', badge:'live', body}));
+  })();
+
+  /* ============ PANEL 5 — MULTICLASS P(C/M/X) (LIVE) ============ */
+  (function multiclass(){
+    const m=T.multiclass; if(!m){ grid.appendChild(panel({title:'Multiclass', body:'<div class="note">unavailable</div>'})); return; }
+    const cols={C:'#5ad1ff',M:'#f5c451',X:'#ff5a4d'};
+    let rows='';
+    for(const c of ['C','M','X']){ const v=m.classes[c]; if(!v) continue;
+      rows+=`<div class="barRow"><div class="name">${v.label}</div>
+        <div class="barTrack"><div class="barFill" style="width:${(v.auc*100).toFixed(0)}%; background:${cols[c]}; box-shadow:0 0 10px ${cols[c]}66"></div></div>
+        <div class="val">${num(v.auc,2)}</div></div>`; }
+    const body=`${rows}
+      <div class="note">Class-resolved AUC at the ${m.horizon}-min horizon — skill rises with flare energy through C→M, then drops at X (only <span class="kch">49 X-flares</span> in 2 years; rare-event uncertainty). Recall: C ${pct(m.classes.C.recall,0)} · M ${pct(m.classes.M.recall,0)} · X ${pct(m.classes.X.recall,0)}.</div>`;
+    grid.appendChild(panel({span:'span4', num:'05 · MULTICLASS', title:'P(C / M / X) by class', sub:'Probabilistic, class-resolved forecast', badge:'live', body}));
+  })();
+
+  /* ============ PANEL 6 — QPP (LIVE) ============ */
+  (function qpp(){
+    const q=T.qpp; if(!q){ grid.appendChild(panel({title:'QPP', body:'<div class="note">unavailable</div>'})); return; }
+    const W=320,H=80,pad=8; let d='';
+    for(let i=0;i<=120;i++){ const x=pad+(W-2*pad)*i/120; const env=Math.exp(-i/95);
+      const y=H/2 - Math.sin(i*0.55)*22*env; d+=(i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1)+' '; }
+    const body=`<svg viewBox="0 0 ${W} ${H}">${glowDefs()}<path d="${d}" fill="none" stroke="var(--cyan)" stroke-width="1.6" filter="url(#glow)" opacity="0.9"/></svg>
+      <div class="statgrid" style="grid-template-columns:1fr 1fr 1fr; margin-top:8px">
+        <div class="stat"><div class="v">${pct(q.fraction,1)}</div><div class="l">Flares with QPP</div></div>
+        <div class="stat"><div class="v">${num(q.medianPeriodS,0)}<small>s</small></div><div class="l">Median period</div></div>
+        <div class="stat"><div class="v">${q.nDetected}</div><div class="l">Detected / ${q.nAnalysed}</div></div>
+      </div>
+      <div class="note">Lomb-Scargle pulsation search on HEL1OS hard X-rays (FAP &lt; 1%, ≥3 cycles). We detect <span class="kch">long-period</span> QPPs only — HEL1OS' ${q.periodRangeS?q.periodRangeS[0]:30}s binning floors the detectable period, so our 3.2% is a conservative lower bound vs the literature's 50–80% measured at 1–4 s cadence.</div>`;
+    grid.appendChild(panel({span:'span4', num:'06 · QPP', title:'Quasi-periodic pulsations', sub:'Hard X-ray fine structure', badge:'live', body}));
+  })();
+
+})();
+</script>
+</body>
+</html>

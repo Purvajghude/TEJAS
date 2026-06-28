@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TEJAS · Sun — Live Catalogue Replay</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  .frame { position: fixed; inset: 12px; pointer-events: none; z-index: 5;
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; }
+  .flash { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(circle at 38% 50%, rgba(255,240,210,0.9), transparent 60%); opacity: 0; }
+  .ui {
+    font-family: "Space Grotesk","SF Mono",ui-monospace,monospace;
+    font-weight: 300; letter-spacing: 0.16em; color: rgba(255,255,255,0.9);
+    pointer-events: none; user-select: none; position: fixed; z-index: 6; padding: 26px;
+    text-shadow: 0 0 6px rgba(0,0,0,0.9); text-transform: uppercase;
+  }
+  .tl { left: 0; top: 0; font-size: 12px; line-height: 1.9; }
+  .tl .clock { font-size: 22px; font-weight: 600; letter-spacing: 0.1em; }
+  .tl .row { color: rgba(255,255,255,0.55); font-size: 11px; }
+  .tl .cur { color: #ffd9a0; }
+  .badge { display:inline-block; font-size:9px; letter-spacing:0.18em; padding:3px 7px; border-radius:5px;
+    color:#00ff66; background:rgba(0,255,102,0.1); border:1px solid rgba(0,255,102,0.3); margin-bottom:8px; }
+  .tr { right: 0; top: 0; font-size: 11px; text-align: right; color: rgba(255,255,255,0.8); line-height: 1.9; }
+  .tr b { color:#fff; font-weight:600; }
+  .cX{color:#ff5a4d} .cM{color:#ffb454} .cC{color:#5ad1ff}
+  .hint { left: 0; bottom: 0; font-size: 10px; color: rgba(255,255,255,0.4); letter-spacing: 0.12em; }
+  .note { right: 0; bottom: 0; font-size: 9.5px; color: rgba(255,255,255,0.4); letter-spacing: 0.06em;
+    text-transform: none; text-align: right; max-width: 360px; line-height: 1.5; }
+  .prog { position: fixed; left: 26px; right: 26px; bottom: 54px; height: 2px; background: rgba(255,255,255,0.12); z-index: 6; }
+  .prog > i { display:block; height:100%; width:0; background: #ffb454; box-shadow: 0 0 8px #ffb454; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="frame"></div>
+<div class="flash" id="flash"></div>
+
+<div class="ui tl">
+  <div class="badge">● LIVE · REAL ADITYA-L1 CATALOGUE</div>
+  <div class="clock" id="clock">—</div>
+  <div class="row">Replaying SoLEXS+HEL1OS flare catalogue</div>
+  <div class="row cur" id="curFlare">awaiting first flare…</div>
+</div>
+<div class="ui tr" id="counts">
+  <div><b id="cTot">0</b> flares replayed</div>
+  <div><span class="cX" id="cX">0</span> X · <span class="cM" id="cM">0</span> M · <span class="cC" id="cC">0</span> C</div>
+  <div id="speed" style="color:rgba(255,255,255,0.45);margin-top:6px">6 days/sec</div>
+</div>
+<div class="prog"><i id="progBar"></i></div>
+<div class="ui hint">drag to orbit · scroll zoom · ↑/↓ speed · space pause</div>
+<div class="ui note">Eruption timing &amp; class are real (GOES-calibrated). Disk position is illustrative — SoLEXS is a Sun-as-a-star spectrometer (non-imaging).</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="data.js"></script>
+
+<script>
+(function () {
+  const canvas = document.getElementById('c');
+  const SUN_RADIUS = 1.0, SUN_X = -0.45;
+  const T = window.TEJAS;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.setClearColor(0x000000, 1.0);
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x000000);
+  const camera = new THREE.PerspectiveCamera(33, window.innerWidth/window.innerHeight, 0.1, 100);
+  camera.position.set(0,0,5.0);
+  const sunSystem = new THREE.Group(); sunSystem.position.x = SUN_X; scene.add(sunSystem);
+
+  const NOISE = `
+    vec3 mod289(vec3 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 mod289(vec4 x){return x - floor(x*(1.0/289.0))*289.0;}
+    vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+    vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314*r;}
+    float snoise(vec3 v){
+      const vec2 C = vec2(1.0/6.0, 1.0/3.0); const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+      vec3 i  = floor(v + dot(v, C.yyy)); vec3 x0 = v - i + dot(i, C.xxx);
+      vec3 g = step(x0.yzx, x0.xyz); vec3 l = 1.0 - g; vec3 i1 = min(g.xyz, l.zxy); vec3 i2 = max(g.xyz, l.zxy);
+      vec3 x1 = x0 - i1 + C.xxx; vec3 x2 = x0 - i2 + C.yyy; vec3 x3 = x0 - D.yyy; i = mod289(i);
+      vec4 p = permute( permute( permute( i.z + vec4(0.0, i1.z, i2.z, 1.0))
+               + i.y + vec4(0.0, i1.y, i2.y, 1.0)) + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+      float n_ = 0.142857142857; vec3 ns = n_ * D.wyz - D.xzx;
+      vec4 j = p - 49.0 * floor(p * ns.z * ns.z); vec4 x_ = floor(j * ns.z); vec4 y_ = floor(j - 7.0 * x_);
+      vec4 x = x_ * ns.x + ns.yyyy; vec4 y = y_ * ns.x + ns.yyyy; vec4 h = 1.0 - abs(x) - abs(y);
+      vec4 b0 = vec4(x.xy, y.xy); vec4 b1 = vec4(x.zw, y.zw);
+      vec4 s0 = floor(b0)*2.0 + 1.0; vec4 s1 = floor(b1)*2.0 + 1.0; vec4 sh = -step(h, vec4(0.0));
+      vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy; vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+      vec3 p0 = vec3(a0.xy, h.x); vec3 p1 = vec3(a0.zw, h.y); vec3 p2 = vec3(a1.xy, h.z); vec3 p3 = vec3(a1.zw, h.w);
+      vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+      p0*=norm.x; p1*=norm.y; p2*=norm.z; p3*=norm.w;
+      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0); m = m*m;
+      return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    }
+    float fbm(vec3 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){ v+=a*snoise(p); p*=2.0; a*=0.5; } return v; }
+  `;
+
+  // ---- photosphere (locked Sun + a data-driven flare hotspot) ----
+  const sunMat = new THREE.ShaderMaterial({
+    uniforms: { time:{value:0}, flareInt:{value:0}, flarePt:{value:new THREE.Vector3(1,0,0)} },
+    vertexShader: `varying vec3 vPos; varying vec3 vNormalV;
+      void main(){ vPos=position; vNormalV=normalize(normalMatrix*normal);
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+    fragmentShader: NOISE + `
+      uniform float time, flareInt; uniform vec3 flarePt; varying vec3 vPos; varying vec3 vNormalV;
+      void main(){
+        vec3 p = normalize(vPos); float t = time*0.06;
+        float w = fbm(p*3.0 + vec3(0.0,t,0.0)); vec3 wp = p + w*0.25;
+        float conv = fbm(wp*8.0 - vec3(t*0.5));
+        float gran = fbm(wp*25.0 + vec3(t*1.4));
+        float fine = fbm(wp*50.0 + vec3(t*2.2));
+        float n = 0.46*conv + 0.34*gran + 0.20*fine; n = n*0.5+0.5;
+        vec3 cDark=vec3(0.50,0.08,0.0), cMid=vec3(1.00,0.50,0.05), cHot=vec3(1.00,0.98,0.90);
+        float k = smoothstep(0.2,0.8,n);
+        vec3 col = (k<0.5)? mix(cDark,cMid,k*2.0) : mix(cMid,cHot,(k-0.5)*2.0);
+        float fac = step(0.78, fbm(p*55.0 + vec3(t*3.0))); col += vec3(1.0,1.0,0.95)*fac*1.2;
+        float ndv = max(dot(normalize(vNormalV), vec3(0.0,0.0,1.0)),0.0);
+        float limb = pow(ndv,0.5); col *= mix(0.65,1.15,limb);
+        col = mix(col*vec3(1.0,0.45,0.2), col, limb);
+        float rim = pow(1.0-ndv,3.0); col += vec3(1.0,0.6,0.2)*rim*0.8;
+        // DATA-DRIVEN flare hotspot: bright active region at the flare location
+        float fp = 1.0 - smoothstep(0.0, 0.55, distance(p, normalize(flarePt)));
+        col += vec3(1.0,0.85,0.5) * fp * flareInt * 3.2;
+        gl_FragColor = vec4(col*1.35, 1.0);
+      }
+    `
+  });
+  const sun = new THREE.Mesh(new THREE.SphereGeometry(SUN_RADIUS,128,128), sunMat);
+  sunSystem.add(sun);
+
+  // ---- corona billboard (from locked Sun) ----
+  const coronaMat = new THREE.ShaderMaterial({
+    uniforms: { time:{value:0}, coreR:{value:0.25} },
+    vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+    fragmentShader: NOISE + `
+      uniform float time, coreR; varying vec2 vUv;
+      void main(){
+        vec2 pp=vUv-0.5; float r=length(pp)*2.0; float ang=atan(pp.y,pp.x);
+        float na=fbm(vec3(cos(ang)*20.0, sin(ang)*20.0, time*0.08)); float needles=pow(na*0.5+0.5,3.0);
+        float streamer=fbm(vec3(cos(ang)*1.5, sin(ang)*1.5, time*0.04))*0.5+0.5;
+        float disk=smoothstep(coreR*0.9,coreR*1.08,r);
+        float rayFall=pow(max(0.0,1.0-r),2.2); float halo=pow(max(0.0,1.0-r),4.5);
+        float a=(needles*streamer*rayFall*0.95 + halo*0.3)*disk;
+        vec3 col=mix(vec3(1.0,0.3,0.05), vec3(1.0,0.65,0.15), clamp(rayFall,0.0,1.0))*1.4;
+        gl_FragColor=vec4(col, clamp(a,0.0,1.0));
+      }`,
+    transparent:true, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const corona = new THREE.Mesh(new THREE.PlaneGeometry(8,8), coronaMat);
+  corona.position.set(SUN_X,0,0); scene.add(corona);
+
+  // ---- prominences (from locked Sun) ----
+  const promMats=[];
+  for(let i=0;i<7;i++){
+    const d=new THREE.Vector3(Math.random()*2-1,Math.random()*2-1,Math.random()*2-1).normalize();
+    let a=new THREE.Vector3().crossVectors(d,new THREE.Vector3(0,1,0)); if(a.lengthSq()<0.01)a=new THREE.Vector3(1,0,0); a.normalize();
+    const sep=0.08+Math.random()*0.08, hgt=0.12+Math.random()*0.18;
+    const f1=d.clone().multiplyScalar(0.92).addScaledVector(a,-sep), f2=d.clone().multiplyScalar(0.92).addScaledVector(a,sep);
+    const apex=d.clone().multiplyScalar(1+hgt);
+    const geo=new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(f1,apex,f2),28,0.012,5,false);
+    const mat=new THREE.ShaderMaterial({ uniforms:{time:{value:0}},
+      vertexShader:`varying vec2 vUv; varying vec3 vP; void main(){vUv=uv;vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+      fragmentShader:NOISE+`uniform float time; varying vec2 vUv; varying vec3 vP;
+        void main(){ float nz=fbm(vP*10.0+vec3(time*0.5))*0.5+0.5; vec3 col=mix(vec3(0.8,0.1,0.0),vec3(1.0,0.6,0.1),nz);
+        float tip=smoothstep(0.0,0.2,vUv.x)*smoothstep(1.0,0.8,vUv.x); gl_FragColor=vec4(col, tip*nz*0.35);}`,
+      transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide });
+    sunSystem.add(new THREE.Mesh(geo,mat)); promMats.push(mat);
+  }
+
+  // ---- starfield ----
+  const sp=new Float32Array(2000*3);
+  for(let i=0;i<2000;i++){ const r=30+Math.random()*40,u=Math.random()*2-1,th=Math.random()*Math.PI*2,s=Math.sqrt(1-u*u);
+    sp[i*3]=r*s*Math.cos(th); sp[i*3+1]=r*u; sp[i*3+2]=r*s*Math.sin(th); }
+  const sg=new THREE.BufferGeometry(); sg.setAttribute('position',new THREE.BufferAttribute(sp,3));
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({color:0xffffff,size:0.07,transparent:true,opacity:0.6,blending:THREE.AdditiveBlending})));
+
+  // ---- eruption particle bursts (M/X flares) ----
+  let bursts=[];
+  function spawnBurst(dirWorld, intensity){
+    const n=Math.floor(40+intensity*120); const pos=new Float32Array(n*3); const vel=[];
+    for(let i=0;i<n;i++){ const s=dirWorld.clone().add(new THREE.Vector3((Math.random()-0.5)*0.7,(Math.random()-0.5)*0.7,(Math.random()-0.5)*0.7)).normalize().multiplyScalar(SUN_RADIUS);
+      pos[i*3]=s.x+SUN_X; pos[i*3+1]=s.y; pos[i*3+2]=s.z;
+      vel.push(s.clone().normalize().multiplyScalar(0.015+Math.random()*0.03*intensity)); }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const m=new THREE.PointsMaterial({color:new THREE.Color(1.0,0.7,0.3),size:0.04,transparent:true,opacity:0.9,blending:THREE.AdditiveBlending,depthWrite:false});
+    const pts=new THREE.Points(g,m); scene.add(pts);
+    bursts.push({pts, vel, born:performance.now(), life:2600});
+    if(bursts.length>12){ const old=bursts.shift(); scene.remove(old.pts); old.pts.geometry.dispose(); }
+  }
+
+  // ---- post ----
+  const composer=new THREE.EffectComposer(renderer);
+  composer.addPass(new THREE.RenderPass(scene,camera));
+  const BLOOM_BASE=1.2;
+  const bloom=new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth,window.innerHeight),BLOOM_BASE,0.4,0.35);
+  composer.addPass(bloom);
+  const caPass=new THREE.ShaderPass({ uniforms:{tDiffuse:{value:null},amount:{value:0.0018}},
+    vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`uniform sampler2D tDiffuse; uniform float amount; varying vec2 vUv;
+      void main(){ vec2 dir=vUv-0.5; vec2 off=dir*length(dir)*amount*3.0;
+      gl_FragColor=vec4(texture2D(tDiffuse,vUv-off).r,texture2D(tDiffuse,vUv).g,texture2D(tDiffuse,vUv+off).b,1.0);}` });
+  composer.addPass(caPass);
+  const grainPass=new THREE.ShaderPass({ uniforms:{tDiffuse:{value:null},time:{value:0},opacity:{value:0.05}},
+    vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`uniform sampler2D tDiffuse; uniform float time,opacity; varying vec2 vUv;
+      float rand(vec2 c){return fract(sin(dot(c,vec2(12.9898,78.233)))*43758.5453);}
+      void main(){ vec4 col=texture2D(tDiffuse,vUv); col.rgb+=(rand(vUv+fract(time))-0.5)*opacity; gl_FragColor=col;}` });
+  composer.addPass(grainPass);
+
+  // ---- DATA: real flare catalogue replay ----
+  const flares = (T && T.flares) ? T.flares.slice().sort((a,b)=> new Date(a.t)-new Date(b.t)) : [];
+  const tStart = flares.length ? new Date(flares[0].t).getTime() : 0;
+  const tEnd   = flares.length ? new Date(flares[flares.length-1].t).getTime() : 1;
+  let vClock = tStart, ptr = 0, daysPerSec = 6, paused = false;
+  const counts = {X:0,M:0,C:0,B:0,A:0,tot:0};
+  const flash = document.getElementById('flash');
+  let flashT = 0, bloomPulse = 0;
+
+  function latlonToVec(lat, lon){
+    const la=lat*Math.PI/180, lo=lon*Math.PI/180;
+    return new THREE.Vector3(Math.cos(la)*Math.cos(lo), Math.sin(la), Math.cos(la)*Math.sin(lo)).normalize();
+  }
+  function fire(f){
+    const L=f.letter||'C';
+    const intensity = L==='X'?1.0 : L==='M'?0.7 : L==='C'?0.4 : 0.25;
+    const pt = latlonToVec(f.lat||0, f.lon||0);
+    sunMat.uniforms.flarePt.value.copy(pt);
+    sunMat.uniforms.flareInt.value = Math.max(sunMat.uniforms.flareInt.value, intensity);
+    bloomPulse = Math.max(bloomPulse, intensity);
+    if (L==='M' || L==='X'){ const dw=pt.clone().applyEuler(sunSystem.rotation); spawnBurst(dw, intensity); }
+    if (L==='X'){ flashT = 1.0; }
+    counts[L] = (counts[L]||0)+1; counts.tot++;
+    document.getElementById('curFlare').textContent = `${f.cls}  ·  ${f.id}  ·  ${new Date(f.t).toISOString().slice(0,16).replace('T',' ')}Z`;
+  }
+
+  const clockEl=document.getElementById('clock'), cTot=document.getElementById('cTot'),
+        cX=document.getElementById('cX'), cM=document.getElementById('cM'), cC=document.getElementById('cC'),
+        progBar=document.getElementById('progBar'), speedEl=document.getElementById('speed');
+  function fmtClock(ms){ const d=new Date(ms); return d.toISOString().slice(0,10)+' '+d.toISOString().slice(11,16)+'Z'; }
+
+  // ---- interaction ----
+  let dragging=false,lx=0,ly=0,lastUp=0;
+  canvas.addEventListener('mousedown',e=>{dragging=true;lx=e.clientX;ly=e.clientY;});
+  window.addEventListener('mouseup',()=>{if(dragging){dragging=false;lastUp=performance.now();}});
+  window.addEventListener('mousemove',e=>{ if(!dragging)return;
+    sunSystem.rotation.y+=(e.clientX-lx)*0.005;
+    sunSystem.rotation.x=Math.max(-1.1,Math.min(1.1,sunSystem.rotation.x+(e.clientY-ly)*0.005)); lx=e.clientX;ly=e.clientY;});
+  canvas.addEventListener('wheel',e=>{e.preventDefault(); camera.position.z=Math.max(3.2,Math.min(8.5,camera.position.z+e.deltaY*0.0025));},{passive:false});
+  window.addEventListener('keydown',e=>{
+    if(e.key==='ArrowUp') daysPerSec=Math.min(60,daysPerSec*1.5);
+    else if(e.key==='ArrowDown') daysPerSec=Math.max(0.5,daysPerSec/1.5);
+    else if(e.code==='Space'){ paused=!paused; e.preventDefault(); }
+    speedEl.textContent = paused?'paused':daysPerSec.toFixed(1)+' days/sec';
+  });
+  window.addEventListener('resize',()=>{ const w=window.innerWidth,h=window.innerHeight;
+    renderer.setSize(w,h); composer.setSize(w,h); bloom.resolution.set(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); });
+
+  // ---- loop ----
+  const clock=new THREE.Clock(); let uiTick=0;
+  function tick(){
+    const dt=Math.min(clock.getDelta(),0.05); const t=clock.elapsedTime;
+    if(!paused && flares.length){
+      vClock += dt * daysPerSec * 86400000;
+      let fired=0;
+      while(ptr<flares.length && new Date(flares[ptr].t).getTime()<=vClock && fired<60){ fire(flares[ptr]); ptr++; fired++; }
+      if(ptr>=flares.length){ vClock=tStart; ptr=0; } // loop the campaign
+    }
+    // decay flare visuals
+    sunMat.uniforms.flareInt.value = Math.max(0, sunMat.uniforms.flareInt.value - dt*1.1);
+    bloomPulse = Math.max(0, bloomPulse - dt*1.2);
+    bloom.strength = BLOOM_BASE + bloomPulse*1.0;
+    if(flashT>0){ flashT=Math.max(0,flashT-dt*1.6); flash.style.opacity=(flashT*0.55).toFixed(3); }
+
+    sunMat.uniforms.time.value=t*0.4; coronaMat.uniforms.time.value=t; grainPass.uniforms.time.value=t;
+    for(let i=0;i<promMats.length;i++) promMats[i].uniforms.time.value=t;
+    if(!dragging && performance.now()-lastUp>2000) sunSystem.rotation.y+=0.001;
+
+    // update bursts
+    const now=performance.now();
+    bursts=bursts.filter(b=>{ const age=(now-b.born)/b.life; if(age>=1){ scene.remove(b.pts); b.pts.geometry.dispose(); return false; }
+      b.pts.material.opacity=(1-age)*0.9; const pos=b.pts.geometry.attributes.position;
+      for(let i=0;i<b.vel.length;i++){ pos.array[i*3]+=b.vel[i].x; pos.array[i*3+1]+=b.vel[i].y; pos.array[i*3+2]+=b.vel[i].z; }
+      pos.needsUpdate=true; return true; });
+
+    // throttle UI
+    uiTick+=dt;
+    if(uiTick>0.1){ uiTick=0;
+      clockEl.textContent=fmtClock(vClock);
+      cTot.textContent=counts.tot.toLocaleString(); cX.textContent=counts.X; cM.textContent=counts.M; cC.textContent=counts.C;
+      progBar.style.width=((vClock-tStart)/(tEnd-tStart)*100).toFixed(1)+'%';
+    }
+    composer.render();
+  }
+  window.__render=function(){ tick(); };
+  (function animate(){ requestAnimationFrame(animate); tick(); })();
+})();
+</script>
+</body>
+</html>
